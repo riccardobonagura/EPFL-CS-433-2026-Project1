@@ -13,7 +13,7 @@ from unittest.mock import patch
 import numpy as np
 
 from feature_processing.io_utils import load_training_partitions
-from ml_attempts.common import metric_values
+from ml_attempts.common import best, metric_values, selection_metric
 from ml_attempts.confirmation import final_refit, write_submission
 from ml_attempts.data import load_context, stratified_folds
 from ml_attempts.orchestration import ATTEMPTS, execute, load_configs
@@ -59,6 +59,9 @@ def tiny_configs():
     configs[ATTEMPTS[2]].update(gamma_values=[0.001, 0.01], initial_batch_size=32,
                                batch_sizes=[1, 32, 64], max_updates=6,
                                checkpoint_budgets=[2, 8], eval_every=2, patience=2)
+    configs[ATTEMPTS[3]].update(lambda_values=[0.001, 0.01], max_iters=20)
+    configs[ATTEMPTS[4]].update(lambda_values=[0.001, 0.01], max_iters=20,
+                               interactions={'age_x_fair_health': ['_AGE80__scaled', 'GENHLTH__4']})
     return configs
 
 
@@ -95,6 +98,14 @@ class ExperimentTests(unittest.TestCase):
             self.assertNotIn('HAREHAB1', state['recovered_features'])
             self.assertEqual(transform_representation(x[:2], names, state).shape[1], first.shape[1])
 
+    def test_selection_metric_orders_runs(self):
+        rows = [dict(run_id='ba', status='ok', balanced_accuracy=0.80, f1=0.36, recall=0.8, precision=0.2, actual_updates=5),
+                dict(run_id='f1', status='ok', balanced_accuracy=0.74, f1=0.42, recall=0.5, precision=0.3, actual_updates=5)]
+        self.assertEqual(best(rows)['run_id'], 'ba')
+        self.assertEqual(best(rows, 'f1')['run_id'], 'f1')
+        with self.assertRaises(ValueError):
+            selection_metric({'selection_metric': 'accuracy'})
+
     def test_metrics_share_augmented_definitions_and_pm1_thresholds(self):
         metrics = metric_values(np.array([-1, -1, 1, 1]), np.array([-2.0, 0.5, 0.2, 1]), 0)
         self.assertEqual(metrics['tp'], 2)
@@ -125,7 +136,7 @@ class ExperimentTests(unittest.TestCase):
             path = Path(temporary) / 'submission.csv'
             write_submission(path, ['z', 'a'], np.array([1, -1]))
             with path.open(newline='', encoding='utf-8') as stream:
-                self.assertEqual(list(csv.reader(stream)), [['Id', '_MICHD'], ['z', '1'], ['a', '-1']])
+                self.assertEqual(list(csv.reader(stream)), [['Id', 'Prediction'], ['z', '1'], ['a', '-1']])
             with self.assertRaises(ValueError):
                 write_submission(path, ['z', 'a'], np.array([0, 1]))
 
@@ -176,6 +187,9 @@ class ExperimentTests(unittest.TestCase):
                 self.assertTrue(payload['confirmation_complete'])
                 self.assertEqual(payload['final_refit']['training_rows'], 2400)
                 protocols.add(payload['confirmation']['protocol_sha256'])
+                expected_metric = 'f1'
+                self.assertEqual(payload['selection_metric'], expected_metric)
+                self.assertEqual(payload['confirmation']['threshold_metric'], expected_metric)
                 self.assertEqual(payload['final_refit']['threshold'], payload['confirmation']['threshold'])
                 frozen = json.loads((output / 'frozen_final_configuration.json').read_text(encoding='utf-8'))
                 self.assertFalse(frozen['params']['early_stopping'])

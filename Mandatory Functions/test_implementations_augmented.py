@@ -55,6 +55,38 @@ class AugmentedImplementationsTests(unittest.TestCase):
             result = augmented.fit_ridge_regression(self.y, self.tx, penalty, penalize_intercept=True)
             self.assert_result(result, expected_w, expected_loss)
 
+    def test_newton_reaches_the_long_run_gradient_descent_optimum(self):
+        for penalize in (False, True):
+            with self.subTest(penalize_intercept=penalize):
+                newton = augmented.fit_reg_logistic_newton(self.labels, self.tx, 0.1, np.zeros(4), 50,
+                                                           gradient_tol=1e-12, penalize_intercept=penalize)
+                descent = augmented.fit_reg_logistic_regression(self.labels, self.tx, 0.1, np.zeros(4), 20000, 0.5,
+                                                                penalize_intercept=penalize)
+                np.testing.assert_allclose(newton.w, descent.w, atol=1e-10)
+                self.assertEqual(newton.stop_reason, 'tolerance')
+                self.assertTrue(newton.converged)
+                self.assertLess(newton.n_updates, 20)
+        expected_w, expected_loss = mandatory.reg_logistic_regression(self.labels, self.tx, 0.1, np.zeros(4), 20000, 0.5)
+        result = augmented.fit_reg_logistic_newton(self.labels, self.tx, 0.1, np.zeros(4), 50,
+                                                   gradient_tol=1e-12, penalize_intercept=True)
+        np.testing.assert_allclose(result.w, expected_w, atol=1e-10)
+        self.assertAlmostEqual(result.loss, expected_loss, places=10)
+
+    def test_newton_budget_chunks_validation_and_history(self):
+        start = augmented.fit_reg_logistic_newton(self.labels, self.tx, 0.1, self.w, 0)
+        np.testing.assert_array_equal(start.w, self.w)
+        self.assertEqual((start.n_updates, start.stop_reason, start.converged), (0, 'max_iters', False))
+        whole = augmented.fit_reg_logistic_newton(self.labels, self.tx, 0.1, np.zeros(4), 50, gradient_tol=1e-12)
+        chunked = augmented.fit_reg_logistic_newton(self.labels, self.tx, 0.1, np.zeros(4), 50,
+                                                    gradient_tol=1e-12, chunk_size=5)
+        np.testing.assert_allclose(chunked.w, whole.w, atol=1e-14)
+        monitored = augmented.fit_reg_logistic_newton(self.labels, self.tx, 0.1, np.zeros(4), 50, gradient_tol=1e-12,
+                                                      tx_val=self.tx[:6], y_val=self.labels[:6], return_history=True)
+        np.testing.assert_array_equal(monitored.w, whole.w)
+        self.assertEqual(monitored.history['update'], list(range(monitored.n_updates + 1)))
+        self.assertAlmostEqual(monitored.best_validation_loss, monitored.history['validation_loss'][-1])
+        self.assertLessEqual(monitored.history['gradient_norm'][-1], 1e-12)
+
     def test_full_batch_sizes_match_full_batch_trainers(self):
         for size in (None, len(self.y), len(self.y) + 7):
             with self.subTest(batch_size=size):

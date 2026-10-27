@@ -15,7 +15,7 @@ import numpy as np
 __all__ = [
     'FitResult', 'fit_mse_gd', 'fit_mse_sgd', 'fit_least_squares',
     'fit_ridge_regression', 'fit_logistic_regression', 'fit_reg_logistic_regression',
-    'linear_predict_scores', 'linear_predict', 'logistic_predict_proba',
+    'fit_reg_logistic_newton', 'linear_predict_scores', 'linear_predict', 'logistic_predict_proba',
     'logistic_predict', 'classification_metrics', 'find_best_threshold', 'make_class_weights',
 ]
 
@@ -356,6 +356,83 @@ def fit_reg_logistic_regression(
         gradient_tol=gradient_tol, eval_every=eval_every, lr_schedule=lr_schedule,
         lr_decay=lr_decay, return_history=return_history,
     )
+
+
+def _logistic_hessian(tx, w, chunk_size):
+    """Mean logistic Hessian X.T diag(p(1-p)) X / N, accumulated in row chunks."""
+    hessian = np.zeros((tx.shape[1], tx.shape[1]))
+    for start in range(0, len(tx), chunk_size):
+        block = tx[start:start + chunk_size]
+        probability = _sigmoid(block @ w)
+        hessian += block.T @ (block * (probability * (1 - probability))[:, None])
+    return hessian / len(tx)
+
+
+def fit_reg_logistic_newton(
+    y, tx, lambda_, initial_w, max_iters, *, gradient_tol=1e-6, penalize_intercept=False,
+    intercept_index=0, tx_val=None, y_val=None, chunk_size=65536, return_history=False,
+):
+    """Damped Newton (IRLS) for L2 logistic; stops at a full-objective gradient tolerance.
+
+    Each step solves (H + 2*lambda_*P) d = g with the exact mean Hessian, then halves
+    the step until the Armijo condition holds. There is no early stopping. Validation
+    data are only monitored; best_validation_loss is the loss at the returned weights.
+    """
+    y, tx = _validate_data(y, tx, logistic=True)
+    lambda_ = _check_scalar(lambda_, 'lambda_')
+    w = np.asarray(initial_w, dtype=float)
+    if w.ndim != 1 or len(w) != tx.shape[1] or not np.isfinite(w).all():
+        raise ValueError('initial_w must be a finite 1-D array of shape (D,)')
+    w = w.copy()
+    max_iters = _check_integer(max_iters, 'max_iters', 0)
+    chunk_size = _check_integer(chunk_size, 'chunk_size', 1)
+    gradient_tol = _check_scalar(gradient_tol, 'gradient_tol')
+    if (tx_val is None) != (y_val is None):
+        raise ValueError('Supply tx_val and y_val together')
+    if tx_val is not None:
+        y_val, tx_val = _validate_data(y_val, tx_val, logistic=True)
+        if tx_val.shape[1] != tx.shape[1]:
+            raise ValueError('Validation and training feature counts must match')
+    mask = _penalty_mask(tx.shape[1], penalize_intercept, intercept_index)
+    objective = lambda weights: _compute_logistic_loss(y, tx, weights) + lambda_ * float(mask @ weights**2)
+    history = {key: [] for key in ('update', 'train_loss', 'validation_loss',
+                                   'learning_rate', 'weight_norm', 'gradient_norm')} if return_history else None
+    stop_reason, converged, n_updates, step = 'max_iters', False, 0, 0.0
+    current = objective(w)
+    for update in range(max_iters + 1):
+        with np.errstate(over='ignore', invalid='ignore', divide='ignore'):
+            gradient = _compute_logistic_gradient(y, tx, w) + 2 * lambda_ * mask * w
+            gradient_norm = float(np.linalg.norm(gradient))
+        if history is not None:
+            validation_loss = _compute_logistic_loss(y_val, tx_val, w) if tx_val is not None else np.nan
+            values = (update, _compute_logistic_loss(y, tx, w), validation_loss, step,
+                      float(np.linalg.norm(w)), gradient_norm)
+            for key, value in zip(history, values):
+                history[key].append(value)
+        if not (np.isfinite(gradient_norm) and np.isfinite(current)):
+            stop_reason = 'non_finite'
+            break
+        if gradient_norm <= gradient_tol:
+            stop_reason, converged = 'tolerance', True
+            break
+        if update == max_iters:
+            break
+        # Singular systems (e.g. lambda_=0 on rank-deficient designs) raise LinAlgError.
+        direction = np.linalg.solve(_logistic_hessian(tx, w, chunk_size) + 2 * lambda_ * np.diag(mask), gradient)
+        decrease, step = float(gradient @ direction), 1.0
+        while step > 1e-10:
+            candidate = w - step * direction
+            value = objective(candidate)
+            if value <= current - 1e-4 * step * decrease:
+                break
+            step /= 2
+        else:
+            stop_reason = 'line_search'
+            break
+        w, current, n_updates = candidate, value, update + 1
+    validation = _compute_logistic_loss(y_val, tx_val, w) if tx_val is not None else None
+    return FitResult(w, _compute_logistic_loss(y, tx, w), n_updates, converged, stop_reason,
+                     None, validation, history)
 
 
 def make_class_weights(y, positive_weight=1.0, negative_weight=1.0):

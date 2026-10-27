@@ -32,6 +32,19 @@ inspected to guess an intercept. The index must be in `[0, D)`.
 | `fit_ridge_regression` | Course-scaled ridge, intercept exempt | Masked intercept penalty |
 | `fit_logistic_regression` | Full-batch mean logistic-loss GD | Mini-batches, weights and all monitoring options |
 | `fit_reg_logistic_regression` | L2 logistic GD, intercept exempt | Same additions plus masked intercept penalty |
+| `fit_reg_logistic_newton` | Full-batch Newton/IRLS L2 logistic, intercept exempt | Gradient-tolerance stopping, chunked Hessian, validation monitoring |
+
+`fit_reg_logistic_newton(y, tx, lambda_, initial_w, max_iters, gradient_tol=1e-6)`
+solves `(H + 2*lambda_*P) d = g` with the exact mean logistic Hessian
+`X.T @ diag(p*(1-p)) @ X / N` (accumulated in `chunk_size` row blocks), then halves
+the step until the Armijo condition holds. It minimizes the same objective as
+`fit_reg_logistic_regression` and stops with `stop_reason="tolerance"` once the
+full-objective gradient norm is at most `gradient_tol`; `"line_search"` reports a
+step that could not decrease the objective. `max_iters` counts Newton steps.
+There is no early stopping, sample weighting or learning-rate schedule. Validation
+data are only monitored: `best_validation_loss` is the loss at the returned
+weights and `best_iteration` is `None`. A singular system (for example
+`lambda_=0` on a rank-deficient design) raises `np.linalg.LinAlgError`.
 
 Normal equations use `np.linalg.solve`. `solver="pinv"` explicitly uses
 `np.linalg.pinv(tx) @ y`. There is no silent fallback, and `np.linalg.lstsq` is

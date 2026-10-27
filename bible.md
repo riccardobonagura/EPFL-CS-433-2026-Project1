@@ -2167,3 +2167,122 @@ Reference: [Agentic Repository Guide](agentic_readme.md).
 The user explicitly authorized a one-time in-place refactor of this bible. Sections 10-12 and 17-18 now replace approximate search descriptions with the three executed run configurations, distinguish five-fold OOF target encoding from three-fold finalist confirmation, and separate exploratory winners from frozen all-training refits. Available selection/CSV/final metadata also resolved the former winner-specific placeholders. No model code or run artifacts were changed and no training was rerun.
 
 Rationale: a search grid cannot establish selected hyperparameters, checkpoints or inference thresholds; recording artifact provenance prevents those stages from being conflated. Earlier descriptions of patience 20, incorrect evaluation intervals, and an MSE sqrt-schedule experiment were corrected using saved settings and execution code. This explicit exception does not relax the append-only policy for future changes.
+
+
+## 2026-10-27 - Converged Newton L2 logistic (Attempt 4) and matched-lambda TE2 control
+
+Decision: add `fit_reg_logistic_newton` (full-batch Newton/IRLS with exact chunked Hessian and Armijo backtracking, intercept-exempt L2, gradient-tolerance stopping) to `Mandatory Functions/implementations_augmented.py`, and a fourth experiment `ml_attempts/04_logistic_newton/`. It fits the Attempt 1 winning base (R2 curated) and its TE2 selective-recovery extension (alpha 20) at every lambda of one shared grid {1e-5, 3e-5, 1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2}, each to full-objective gradient norm <= 1e-6 (cap 50 steps). The overall winner goes through the unchanged shared 3-fold confirmation and all-row refit; for Newton these run to the same tolerance instead of rescaling a selected update budget. The mandatory `implementations.py` is unchanged.
+
+Rationale: Sections 10, 11 and 15.3 recorded that every selected logistic run stopped at the 5,000-update cap (convergence not established) and that TE2's gain over R2 was confounded by a different selected lambda. Newton removes both confounds: about 550 dimensions make the Hessian solve cheap (5-7 s per full-data fit), and quadratic convergence reaches the regularized optimum in 5-7 steps. With an exact optimum there is no early stopping; lambda alone regularizes.
+
+Evidence (same 262,508 / 65,627 split, split SHA256 0e013bf3...; `ml_attempts/04_logistic_newton/outputs/`):
+- All 16 fits stopped with `tolerance` in 5-7 Newton steps. Local unit tests confirm agreement with 20,000-step full-batch GD and with the mandatory `reg_logistic_regression` to about 1e-10.
+- Matched-lambda TE2 minus R2 selected BA was positive at all eight lambdas: +0.00094, +0.00084, +0.00142, +0.00028, +0.00001, +0.00029, +0.00039, +0.00047 (`matched_lambda_results.csv`). This is the controlled encoding comparison that Section 11 lacked; the effect is small (at most 0.0014 BA) and below the 0.002 material-gain criterion at every lambda.
+- Solver effect at the selected configurations (`solver_comparison.csv`): R2 Newton (lambda 3e-4) 0.77915 versus GD run_018 0.77791 (+0.00124); TE2 Newton (lambda 1e-4) 0.78019 versus GD 0.77913 at the same lambda (+0.00105). The capped GD fits were therefore measurably undertrained, not merely unconfirmed.
+- Selected exploratory run: run_011, N-TE2 selective recovery, lambda=1e-4, 7 steps, BA 0.78019, F1 0.35502.
+- 3-fold confirmation (same protocol hash as Attempts 1-3): mean BA 0.7790, fold SD 0.0014, mean F1 0.3612. Per-fold paired differences on identical outer folds: versus GD TE2 (Attempt 2) +0.0037/+0.0038/+0.0025; versus R2 GD (Attempt 1) +0.0051/+0.0050/+0.0036; versus MSE-SGD +0.0058/+0.0090/+0.0093. Three folds are not a significance test, but the sign is consistent on every fold.
+- All-row refit: 7 Newton steps to tolerance, frozen threshold 0.08467454931987088 (median inner threshold), 547 features, test predicted-positive fraction 0.3107. Its labels agree with the Attempt 2 submission on 98.1% of test rows.
+
+Interpretation: most of the confirmed gain of Attempt 4 over Attempt 2 comes from optimization (reaching the optimum), not from representation; the encoding effect itself is consistently positive but small. This supersedes the Section 11 caveat that the TE2 gain could not be separated from lambda retuning, and the Section 15.3 open question about logistic undertraining for these representations. Lambda and threshold are still validation-selected and recipe selection still overlaps the confirmation pool, so the Section 13.3 caution about conditional confirmation still applies.
+
+Alternatives considered: raising the GD update cap (slower and still needs a stopping rule), an L-BFGS fitter (more code for no benefit at this dimension), and a self-contained attempt folder with its own confirmation loop (rejected: it would duplicate `confirmation.py`, against the repository rules).
+
+Reproducibility note: the full pipeline (EDA, baseline diagnostics, processing, ablations, Attempts 1-3) was regenerated on 2026-10-27 in this checkout with Miniconda Python 3.13.5 / NumPy 2.2.6; all numbers in Sections 2-18 that were rechecked (baseline best BA, A0-A6 ablation, 541-dimension curated state, Attempt 1-3 exploration, confirmation means/SDs, frozen thresholds and refit update counts) reproduced exactly.
+
+
+## 2026-10-27 - Codebook-decoded feature recovery (Attempt 5) and finalist blending (06_finalist_blend)
+
+Decision: add Attempt 5 (`ml_attempts/05_feature_recovery/`). It applies three cumulative blocks to the Attempt 1 base, all fitted with the Attempt 4 Newton fitter on one shared lambda grid {3e-5, 1e-4, 3e-4, 1e-3}:
+- F1 decodes day/count/drinking fields as numeric using codebook codes (88 = none -> 0; 77/99 = missing; `ALCDAY5` converted to drinking days per 30; `_DRNKWEK` 99900 = missing, then log1p).
+- F2 recovers `DIABETE3`, `CHECKUP1`, `CHOLCHK`, `MARITAL`, `EDUCA`, `EMPLOY1` and `INCOME2` as one-hot fields after decoding don't-know/refused codes to missing (`onehot_limits` 8).
+- F3 adds seven age x condition dummy interactions plus the existing age/BMI squares.
+
+Also add a post-confirmation step (`ml_attempts/blending.py`, `ml_attempts/06_finalist_blend/`). It rebuilds out-of-fold scores from the saved confirmation-fold models, measures pairwise error overlap, and tests convex probability blends with the best logistic finalist, choosing alpha and the threshold on inner stopping rows only. Only existing `feature_processing` settings were used; neither ML implementation file changed.
+
+Rationale: Section 15.3 asked whether the curated representation underfits. Before this attempt, R2 dropped 33 `unverified_numeric` and 41 `unused_medium_cardinality` fields, including diabetes status, which is partition-dependent: on the full split code 7 clears rare support, giving 6 effective levels, above the limit of 5. The only nonlinear terms tested were the squares (+0.0001). Converged Newton fits make a matched-lambda block ablation cheap and free of the update-cap confound. Blending was the remaining open follow-up recorded in `agentic_readme.md`. The overlap analysis also provides the error analysis that the report guidelines ask for.
+
+Code verification: each mapping follows the BRFSS 2015 codebook value labels. It was spot-checked in `x_train`, where the codes appear as isolated high-frequency values. For example, `PHYSHLTH` has 88 on 204,264 rows, `ALCDAY5` has 888 on 154,556 rows, and `_DRNKWEK` has 99900 on 18,967 rows. Quarantine is unchanged.
+
+Evidence (same split, SHA256 0e013bf3...; `ml_attempts/05_feature_recovery/outputs/`):
+- Every fit (16) stopped at `tolerance` in 6-7 Newton steps. Feature counts were F0 541, F1 560, F2 608 and F3 617.
+- Matched-lambda block gains in selected BA (`matched_lambda_results.csv`):
+  - F1-F0: +0.00076, +0.00095, +0.00046, +0.00039.
+  - F2-F1: +0.00131, +0.00131, +0.00200, +0.00141.
+  - F3-F2: +0.00037, +0.00066, +0.00008, -0.00019.
+  - The categorical recovery block is the largest and most consistent. Interactions add little and are negative at the largest lambda.
+- Best-lambda F3 minus F0: +0.00254 BA, above the predeclared 0.002 material-gain criterion. The selected run was run_014 (F3, lambda=1e-4, 7 steps): BA 0.78169, F1 0.36519. That is +0.00150 over the Attempt 4 selection on the same split.
+- 3-fold confirmation (same protocol hash as Attempts 1-4): mean BA 0.7812, fold SD 0.0015, mean F1 0.3647.
+  - Paired per-fold differences versus Attempt 4: +0.0022/+0.0028/+0.0014.
+  - Versus Attempt 2: +0.0059/+0.0066/+0.0040.
+- All-row refit: 7 Newton steps to tolerance and 616 features. The frozen threshold is 0.08597367186933232; it happens to equal fold 1's inner threshold, which is the median of the three. The test predicted-positive fraction is 0.3104. Labels agree with the Attempt 4 submission on 97.1% of test rows.
+- Blend (`ml_attempts/06_finalist_blend/outputs/`):
+  - Rebuilt out-of-fold scores reproduce every stored confirmation mean exactly (`reproduction_check.csv`).
+  - Pairwise error-set Jaccard is 0.76-0.96. The most different pair is MSE-SGD versus Attempt 5 (0.756, disagreement 7.2%), and the Newton pair 04/05 scores 0.889.
+  - With Attempt 5 as anchor, inner stopping rows chose alpha = 1 (anchor alone) in 8 of 9 fold/partner cases. The one exception (alpha 0.75 with Attempt 1, fold 3) lost 0.0008 on the outer rows.
+  - No blend is recommended, and none was exported. `recommendation.json` points to the Attempt 5 submission.
+- Error analysis of the anchor (`error_analysis.csv`, out-of-fold):
+  - Errors follow the base rate. Recall is 0.29 at ages 18-44 (prevalence 1.3%) and 0.94 at 75+ (prevalence 20.6%), where specificity falls to 0.28.
+  - Similarly, GENHLTH = poor has recall 0.98 and specificity 0.18.
+  - With a single global threshold, the model flags almost every older or unhealthy respondent and misses most young positives. Per-group BA ranges from 0.58 to 0.75, against 0.78 overall.
+
+Interpretation:
+- Recovering fields the curated profile had discarded for cardinality or unknown codes helps more than target-encoding them (Attempt 4's TE2 block: at most +0.0014). Hand-picked interactions are close to neutral.
+- Blending linear models that share most of their inputs gives no measurable benefit, because their errors overlap heavily. This answers the blending follow-up negatively for these finalists.
+- The error analysis suggests that remaining gains need features that separate risk within an age/health stratum, not more global capacity.
+- This supersedes Section 15.3's open underfitting question for these field groups. Lambda and threshold are still validation-selected, so the Section 13.3 caution about conditional confirmation still applies.
+
+Alternatives considered:
+- Target-encoding the recovered categoricals instead: already tested as TE2, with a smaller gain.
+- Decoding the raw fruit/vegetable frequency fields: rejected for their complex unit codes; the derived `_FRUTSUM`/`_VEGESUM` remain excluded and untested.
+- Piecewise age bins: not supported without new preprocessing code; the age square covers curvature.
+- Blending in score space with the MSE finalist: would need a fitted calibration map, so it was left to the overlap table only.
+
+## 2026-10-27 - Remove the blending step (06_finalist_blend)
+
+Decision: at the user's request, `ml_attempts/blending.py`, `ml_attempts/06_finalist_blend/` (including its outputs) and the orchestration/test hooks were removed. This partially supersedes the previous entry: Attempt 5 stays, the blending step does not. Its recorded findings remain valid evidence (error-set Jaccard 0.76-0.96 between finalists; no inner-selected blend beat Attempt 5 alone; out-of-fold errors track the base rate across age and general-health strata), but the artifacts no longer exist in the checkout and would need the removed code to regenerate. No submission changed: the selected submission is still `ml_attempts/05_feature_recovery/outputs/submission.csv`.
+
+## 2026-10-27 - Submission header matches the sample file
+
+Decision: `write_submission` (`ml_attempts/confirmation.py`) now writes the header `Id,Prediction`, exactly as `dataset/sample_submission.csv` does, instead of `Id,_MICHD`. The five existing `submission.csv` files had only their header line rewritten; labels, IDs, ID order and CRLF line endings are unchanged, and each file was checked against the sample (same 109,379 IDs in the same order, labels in {-1, 1}). `test_predictions.csv` keeps its internal `_MICHD` column name. Rationale: the platform may match columns by name, so the sample format is authoritative.
+
+## 2026-10-27 - Select Attempt 5 thresholds and runs by F1 (leaderboard metric)
+
+Decision: the BA-threshold Attempt 5 submission scored F1 0.370 / accuracy 0.750 on the platform, which ranks by F1 and then accuracy. Attempt 5 (`config.py`: `selection_metric: 'f1'`) now ranks runs by validation F1 and picks every threshold (exploration, inner confirmation folds, frozen final threshold) by F1. Its lambda grid was widened to {1e-5, ..., 3e-3}. The new `selection_metric` setting lives in `ml_attempts/common.py`, and `confirm_finalist` passes it to `find_best_threshold`. Attempts 1-4 keep the BA default, and their recorded results are unchanged. `summary.md` is now ranked by 3-fold F1, then accuracy, and shows each attempt's threshold metric. This supersedes the earlier convention, first used in Section 2, that BA is the selection metric everywhere; BA remains reported.
+
+Rationale: the platform result reproduced the local 3-fold estimate at the BA threshold (F1 0.365, accuracy 0.747), so the gap was the operating point, not overfitting. With about 9% positives, the BA-optimal threshold (about 0.086) flags 31% of rows and produces mostly false positives. A pre-change check on the saved BA-selected fold models gave outer F1 0.422 / accuracy 0.857 with an inner-F1 threshold (about 0.18) on every fold.
+
+Evidence (`ml_attempts/05_feature_recovery/outputs/`):
+- All 24 Newton fits converged in 6-7 steps.
+- Matched-lambda block gains in F1:
+  - F1-F0: +0.0009 to +0.0017.
+  - F2-F1: -0.0001 to +0.0030.
+  - F3-F2: -0.0004 to +0.0028.
+- Best-lambda F3 minus F0: +0.0041 F1.
+- Selected run_020: F3, lambda=3e-5, exploratory F1 0.42828 / accuracy 0.87519 / BA 0.71905.
+- 3-fold confirmation (same protocol hash): F1 0.4221 (SD 0.0001), accuracy 0.8581, BA 0.7356, precision 0.330, recall 0.587. Fold thresholds were 0.1802, 0.1860 and 0.1808.
+- Versus the BA-threshold Attempt 5 confirmation: F1 +0.0574, accuracy +0.111, BA -0.0456.
+- Choosing lambda by F1 rather than BA added only about +0.0003 F1 over thresholding the earlier lambda=1e-4 model (0.4218 in the pre-change check). Nearly all of the gain is the threshold.
+- All-row refit: 7 Newton steps, frozen threshold 0.1807767704909474, test predicted-positive fraction 0.159.
+- The new submission agrees with the uploaded BA-threshold submission on 84.8% of test rows; the differences are the flags removed by the higher threshold.
+- The exploratory F1 (0.428) exceeds the confirmed F1 (0.422), as expected after selecting on validation.
+
+## 2026-10-27 - All attempts select by F1; full pipeline rerun
+
+Decision: Attempts 1-4 also set `selection_metric: 'f1'`, so every attempt ranks its search stages and picks every threshold by F1, the leaderboard metric. This extends the previous entry from Attempt 5 to all attempts. All internal choices in `searches.py` now use the configured metric, including the Attempt 1 lambda/gamma stages and optional-engineering gain, Attempt 2's competitive check and its gain versus the benchmark, and the Attempt 3 gamma/batch/schedule stages. `matched_lambda_results.csv` (Attempt 4) adds F1 columns, and `solver_comparison.csv` adds an F1 difference. The BA-era outputs of Attempts 1-4 were overwritten; a scratch backup was kept outside the repository, and their numbers remain recorded in earlier entries.
+
+Evidence (`python -B -m ml_attempts.run_all`, same split and confirmation protocol):
+
+| Attempt | Selected recipe | 3-fold F1 | Accuracy | BA | Frozen threshold | Test positive fraction |
+| --- | --- | --- | --- | --- | --- | --- |
+| 05 | F3, lambda 3e-5 | 0.4221 | 0.8581 | 0.7356 | 0.1808 | 0.159 |
+| 04 | N-TE2, lambda 1e-5 | 0.4178 | 0.8647 | 0.7225 | 0.1951 | 0.143 |
+| 02 | TE1 curated compact, lambda 1e-4 | 0.4135 | 0.8601 | 0.7239 | 0.1847 | 0.149 |
+| 01 | R2 curated, lambda 1e-3, gamma 0.1 | 0.4125 | 0.8599 | 0.7231 | 0.1946 | 0.138 |
+| 03 | S0 R2 curated MSE-SGD, gamma 0.03, batch 256 | 0.4060 | 0.8523 | 0.7255 | -0.6017 (score) | 0.262 |
+
+- Attempt 5 reproduced its F1-selected result exactly.
+- Under F1, Attempt 2 selects TE1 rather than TE2, and Attempt 1 selects lambda 1e-3 / gamma 0.1.
+- The ranking of attempts is identical to the BA ranking (05 > 04 > 02 > 01 > 03).
+- Attempt 5 beats Attempt 4 on all three folds (fold F1 0.4221/0.4220/0.4222 versus 0.4163/0.4187/0.4182).
+- The F1 spread between attempts (0.406-0.422) is much smaller than the gain from the threshold change (about +0.06 F1 per attempt).
+- Fold SD of BA rises at F1 thresholds (about 0.012-0.014 for GD/Newton), because BA is sensitive to where the higher threshold falls; fold SD of F1 stays at or below 0.003 for every attempt.

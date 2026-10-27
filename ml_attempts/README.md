@@ -1,13 +1,17 @@
 # Three Project 1 experiments
 
 These experiments compare tuned logistic representations, selective OOF target
-encoding, and early-stopped MSE-SGD. A0/minimal is the benchmark to beat, not a
-representation to discard because more elaborate processing exists.
+encoding, early-stopped MSE-SGD, converged Newton L2 logistic with a
+matched-lambda R2/TE2 control (Attempt 4), and codebook-decoded feature recovery
+with targeted interactions (Attempt 5). Every attempt ranks runs and selects thresholds by F1,
+the leaderboard metric. A0/minimal is the benchmark to beat, not a representation to discard
+because more elaborate processing exists.
 
 Only NumPy and Python standard-library modules are used. Figures are exported
 as both PNG and SVG without additional plotting dependencies. Existing feature
 processing and augmented fitters, metrics and threshold helpers are reused; no
-ML algorithm is reimplemented and neither ML implementation file is modified.
+experiment script reimplements an algorithm. New fitters (Newton for Attempt 4) live in `implementations_augmented.py`; the
+mandatory `implementations.py` is never modified.
 
 ## Run
 
@@ -23,6 +27,8 @@ Or run an attempt independently:
 python -B ml_attempts/01_logistic_representation/run.py
 python -B ml_attempts/02_logistic_target_encoded/run.py
 python -B ml_attempts/03_mse_sgd/run.py
+python -B ml_attempts/04_logistic_newton/run.py
+python -B ml_attempts/05_feature_recovery/run.py
 ```
 
 Attempts 2/3 reuse a matching saved Attempt 1 selection. If it is unavailable,
@@ -107,6 +113,20 @@ as equivalent optimization objectives.
    Requested budgets differ from returned best-MSE checkpoint iterations; both
    are saved. A low-cost size-one run may represent much less than one data pass.
 
+4. **Newton logistic:** the augmented `fit_reg_logistic_newton` fits both the
+   Attempt 1 winning base (R2) and its TE2 selective-recovery extension at every
+   lambda of one shared grid, each to a full-objective gradient tolerance. This
+   removes the update cap and the lambda retuning that confound the Attempt 1/2
+   comparison. Confirmation and the all-row refit run Newton to the same tolerance
+   instead of rescaling a selected update budget. See
+   [04_logistic_newton/README.md](04_logistic_newton/README.md).
+5. **Feature recovery:** three cumulative blocks on the Attempt 1 base:
+   codebook-decoded numeric day/count/drinking fields, one-hot recovery of
+   dropped medium-cardinality fields (diabetes, checkups, socioeconomic), and
+   seven age x condition interactions. All four representations are fitted
+   with Newton on one shared lambda grid. See
+   [05_feature_recovery/README.md](05_feature_recovery/README.md).
+
 No class weighting, quarantine reintroduction, exhaustive alpha search, blind
 engineering block, final-model hyperparameter sweep or leaderboard tuning occurs.
 The profiles remain conservative hypotheses: success is not assumed, and tiny
@@ -134,7 +154,7 @@ against test predictions. Only then is `x_test.csv` read for inference.
 
 Each experiment exports its own `final_model_weights.npz`, complete reusable
 `preprocessing_state/`, `test_predictions.csv` and `submission.csv`. Submissions
-contain `Id,_MICHD`, preserve original test ID order, and contain only -1/+1
+contain `Id,Prediction` (the header of `dataset/sample_submission.csv`), preserve original test ID order, and contain only -1/+1
 labels. The repository has no matching submission helper, so a validated stdlib
 CSV writer supplies this exact format. Files stay local; nothing is uploaded.
 
@@ -164,5 +184,5 @@ python -B -m unittest ml_attempts.test_experiments -v
 
 Tests cover exact split reuse, OOF recovery independence from a row's own label,
 quarantine, shared metrics, the confirmation-before-test guard, fold separation,
-all-three-attempt execution, full-row refitting, transparent state, final threshold
+all-attempt execution, full-row refitting, transparent state, final threshold
 freezing, original test ID order, labels, immutable input CSVs and PNG/SVG output.

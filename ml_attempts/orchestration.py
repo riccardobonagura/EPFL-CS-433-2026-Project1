@@ -7,10 +7,11 @@ from pathlib import Path
 
 from feature_processing.io_utils import PROJECT_DIR
 from .data import load_context, validate_sources
-from .searches import attempt_one, attempt_two, attempt_three
+from .searches import attempt_one, attempt_two, attempt_three, attempt_four, attempt_five
 
 
-ATTEMPTS = ['01_logistic_representation', '02_logistic_target_encoded', '03_mse_sgd']
+ATTEMPTS = ['01_logistic_representation', '02_logistic_target_encoded', '03_mse_sgd', '04_logistic_newton',
+            '05_feature_recovery']
 
 
 def load_configs():
@@ -48,6 +49,14 @@ def explore(context, configs, names):
         selections[ATTEMPTS[1]] = attempt_two(context, configs[ATTEMPTS[1]], benchmark)
     if ATTEMPTS[2] in names:
         selections[ATTEMPTS[2]] = attempt_three(context, configs[ATTEMPTS[2]], benchmark)
+    if ATTEMPTS[3] in names:
+        # The Attempt 2 GD selection is optional context for the solver comparison only.
+        gd = {'te2': selections.get(ATTEMPTS[1]) or read_selection(context, ATTEMPTS[1])}
+        selections[ATTEMPTS[3]] = attempt_four(context, configs[ATTEMPTS[3]], benchmark, configs[ATTEMPTS[1]], gd)
+    if ATTEMPTS[4] in names:
+        # The Attempt 4 selection is optional context for the report comparison only.
+        newton = selections.get(ATTEMPTS[3]) or read_selection(context, ATTEMPTS[3])
+        selections[ATTEMPTS[4]] = attempt_five(context, configs[ATTEMPTS[4]], benchmark, newton)
     validate_sources(context)
     return selections
 

@@ -10,8 +10,8 @@ import numpy as np
 
 from feature_processing.io_utils import load_unlabeled_csv, stratified_split
 from .common import (
-    METRICS, classification_metrics, find_best_threshold, fit_model, fit_mse_sgd,
-    fit_reg_logistic_regression, linear_predict_scores, logistic_predict_proba,
+    METRICS, classification_metrics, find_best_threshold, fit_model, fit_mse_sgd, fit_newton,
+    fit_reg_logistic_regression, linear_predict_scores, predict_scores,
     metric_values, write_csv, write_json,
 )
 from .data import stratified_folds, validate_sources
@@ -45,20 +45,21 @@ def confirm_finalist(context, payload):
         print(f'Confirming {payload["attempt"]}: outer fold {fold_number}/3...', flush=True)
         bundle = prepare(context, payload['recipe'], training_indices, stopping_indices)
         params = dict(payload['model_params'])
-        scale = len(training_indices) / payload['best_run']['n_train'] if 'n_train' in payload['best_run'] else len(training_indices) / context['metadata']['training_rows']
-        params['max_iters'] = max(1, int(math.ceil(_selected_updates(payload) * scale)))
-        params['eval_every'] = max(1, min(params['eval_every'], max(1, params['max_iters'] // 8)))
-        if params['lr_schedule'] == 'inverse':
-            params['lr_decay'] /= scale
+        # Newton runs to its gradient tolerance; only first-order fits rescale a selected budget.
+        if params['model'] != 'newton':
+            scale = len(training_indices) / payload['best_run']['n_train'] if 'n_train' in payload['best_run'] else len(training_indices) / context['metadata']['training_rows']
+            params['max_iters'] = max(1, int(math.ceil(_selected_updates(payload) * scale)))
+            params['eval_every'] = max(1, min(params['eval_every'], max(1, params['max_iters'] // 8)))
+            if params['lr_schedule'] == 'inverse':
+                params['lr_decay'] /= scale
         result, seconds = fit_model(bundle, params)
         if result.stop_reason == 'non_finite':
             raise RuntimeError('Nonfinite finalist confirmation: ' + payload['attempt'])
-        stopping_scores = (linear_predict_scores(bundle['validation'], result.w) if params['model'] == 'mse'
-                           else logistic_predict_proba(bundle['validation'], result.w))
-        threshold, _ = find_best_threshold(bundle['validation_y'], stopping_scores)
+        stopping_scores = predict_scores(params['model'], bundle['validation'], result.w)
+        threshold, _ = find_best_threshold(bundle['validation_y'], stopping_scores,
+                                           metric=payload.get('selection_metric', 'balanced_accuracy'))
         outer_matrix = transform_representation(context['x'][held_out], context['names'], bundle['state'])
-        outer_scores = (linear_predict_scores(outer_matrix, result.w) if params['model'] == 'mse'
-                        else logistic_predict_proba(outer_matrix, result.w))
+        outer_scores = predict_scores(params['model'], outer_matrix, result.w)
         selected_metrics = metric_values(context['y_pm1'][held_out], outer_scores, threshold)
         default_metrics = metric_values(context['y_pm1'][held_out], outer_scores, 0 if params['model'] == 'mse' else 0.5)
         selected_iteration = result.best_iteration if result.best_iteration is not None else result.n_updates
@@ -67,7 +68,8 @@ def confirm_finalist(context, payload):
                'threshold': threshold, 'max_updates': params['max_iters'], 'actual_updates': result.n_updates,
                'best_iteration': result.best_iteration, 'stop_reason': result.stop_reason,
                'training_runtime_seconds': seconds, 'feature_count': outer_matrix.shape[1] - 1,
-               'selected_training_passes': selected_iteration * min(params['batch_size'], len(training_indices)) / len(training_indices),
+               'selected_training_passes': selected_iteration * min(params['batch_size'] or len(training_indices),
+                                                                    len(training_indices)) / len(training_indices),
                **selected_metrics, **{'default_' + key: value for key, value in default_metrics.items()}}
         rows.append(row)
         fold_output = folder / f'fold_{fold_number}'
@@ -90,6 +92,7 @@ def confirm_finalist(context, payload):
                    median_training_passes=float(np.median([row['selected_training_passes'] for row in rows])),
                    mean_inner_training_rows=float(np.mean([row['inner_training_rows'] for row in rows])),
                    protocol_sha256=protocol.hexdigest(), outer_folds=3,
+                   threshold_metric=payload.get('selection_metric', 'balanced_accuracy'),
                    protocol='Stratified outer folds; 20% inner stopping/threshold split; fit only inner training; no outer refit')
     payload.update(confirmation_complete=True, confirmation=summary)
     write_json(output / 'selection.json', payload)
@@ -100,9 +103,10 @@ def confirm_finalist(context, payload):
     report += '\n'.join(f'| {row["fold"]} | {row["balanced_accuracy"]:.4f} | {row["f1"]:.4f} | '
                         f'{row["recall"]:.4f} | {row["precision"]:.4f} | {row["threshold"]:.5g} |' for row in rows)
     report += (f'\n\nMean outer BA **{summary["mean_balanced_accuracy"]:.3%}**, fold SD **{summary["std_balanced_accuracy"]:.3%}**. '
-               f'Mean F1 **{summary["mean_f1"]:.3%}**.\n\n'
+               f'Mean F1 **{summary["mean_f1"]:.3%}**, mean accuracy **{summary["mean_accuracy"]:.3%}**.\n\n'
                'Each outer fold independently fits preprocessing and OOF target encoding on inner-training rows only. '
-               'The inner stopping partition selects stopping and thresholds. Outer labels never select either. '
+               f'The inner stopping partition selects stopping and thresholds (threshold metric: {summary["threshold_metric"]}). '
+               'Outer labels never select either. '
                'Models deliberately use about 53% of the confirmation pool per fold (two-thirds times 80%); there is no outer-training '
                'refit after calibration. This conservative protocol is identical for all finalists. '
                'Prior exploratory configuration selection overlapped these source rows, so this is conditional confirmation, '
@@ -118,7 +122,9 @@ def _fit_full(training, y_pm1, params):
     options = {key: value for key, value in params.items() if key not in {'model', 'lambda_'}}
     options.update(initial_w=np.zeros(training.shape[1]), early_stopping=False, return_history=False)
     start = time.perf_counter()
-    if params['model'] == 'mse':
+    if params['model'] == 'newton':
+        result = fit_newton(y_pm1, training, params)
+    elif params['model'] == 'mse':
         result = fit_mse_sgd(y_pm1, training, **options)
     else:
         result = fit_reg_logistic_regression(((y_pm1 + 1) / 2).astype(int), training,
@@ -137,7 +143,7 @@ def write_submission(path, ids, labels):
         raise ValueError('Submission predictions must use {-1,+1}')
     with open(path, 'w', newline='', encoding='utf-8') as stream:
         writer = csv.writer(stream)
-        writer.writerow(['Id', '_MICHD'])
+        writer.writerow(['Id', 'Prediction'])
         writer.writerows((record_id, int(label)) for record_id, label in zip(ids, labels))
 
 
@@ -149,16 +155,19 @@ def final_refit(context, payload):
     threshold = confirmation['threshold']
     params = dict(payload['model_params'])
     params['early_stopping'] = False
-    batch = min(params['batch_size'], len(context['x']))
-    params['max_iters'] = int(math.ceil(confirmation['median_training_passes'] * len(context['x']) / batch))
-    if params['lr_schedule'] == 'inverse':
-        params['lr_decay'] *= context['metadata']['training_rows'] / len(context['x'])
+    if params['model'] != 'newton':
+        batch = min(params['batch_size'], len(context['x']))
+        params['max_iters'] = int(math.ceil(confirmation['median_training_passes'] * len(context['x']) / batch))
+        if params['lr_schedule'] == 'inverse':
+            params['lr_decay'] *= context['metadata']['training_rows'] / len(context['x'])
     # Freeze all selected choices before inference-only access to x_test.csv.
     frozen = {'recipe': payload['recipe'], 'params': params, 'threshold': threshold,
               'full_training_rows': len(context['x']), 'stopping_source': 'median inner-CV selected data passes',
               'threshold_source': 'median inner-CV selected threshold', 'test_used_for_selection': False}
     write_json(output / 'frozen_final_configuration.json', frozen)
-    print(f'All-data refit {payload["attempt"]}: {len(context["x"]):,} rows, {params["max_iters"]} fixed updates...', flush=True)
+    budget = (f'Newton to tolerance (cap {params["max_iters"]})' if params['model'] == 'newton'
+              else f'{params["max_iters"]} fixed updates')
+    print(f'All-data refit {payload["attempt"]}: {len(context["x"]):,} rows, {budget}...', flush=True)
     training, state, preprocessing_seconds = fit_representation(context['x'], context['y_pm1'], context['names'], payload['recipe'])
     result, seconds = _fit_full(training, context['y_pm1'], params)
     del training
@@ -169,7 +178,7 @@ def final_refit(context, payload):
     raw_test, test_names, test_ids = load_unlabeled_csv(context['data_dir'] / 'x_test.csv')
     test_matrix = transform_representation(raw_test, test_names, state)
     linear_scores = linear_predict_scores(test_matrix, result.w)
-    probabilities = logistic_predict_proba(test_matrix, result.w) if params['model'] != 'mse' else None
+    probabilities = predict_scores(params['model'], test_matrix, result.w) if params['model'] != 'mse' else None
     scores = linear_scores if probabilities is None else probabilities
     labels = np.where(scores >= threshold, 1, -1)
     write_submission(output / 'submission.csv', test_ids, labels)
@@ -198,7 +207,7 @@ def final_refit(context, payload):
                'validation rows, so it uses the previously selected data-pass budget with early stopping disabled; '
                'inverse decay is rescaled to preserve its epoch interpretation. No test labels or leaderboard feedback '
                'are used. final_model_weights.npz and preprocessing_state/ describe the all-row fit; submission.csv '
-               'contains only Id,_MICHD with -1/+1 labels. Files are local and were not submitted externally.\n')
+               'contains only Id,Prediction with -1/+1 labels. Files are local and were not submitted externally.\n')
     report_path.write_text(report, encoding='utf-8')
     validate_sources(context)
     del raw_test, test_matrix
@@ -216,6 +225,7 @@ def master_comparison(context):
             continue
         row = dict(payload['best_run'])
         row['exploratory_threshold'] = row['threshold']
+        row['threshold_metric'] = payload.get('selection_metric', 'balanced_accuracy')
         if payload.get('confirmation_complete'):
             row.update({'cv_' + key: value for key, value in payload['confirmation'].items() if isinstance(value, (float, int))})
             row['threshold'] = payload['confirmation']['threshold']
@@ -231,16 +241,17 @@ def master_comparison(context):
         raise ValueError('Finalists were not confirmed on identical outer/inner rows')
     write_csv(context['root'] / 'ml_attempts/model_comparison.csv', rows)
     completed = [row for row in rows if 'cv_mean_balanced_accuracy' in row]
-    completed.sort(key=lambda row: (-row['cv_mean_balanced_accuracy'], -row['cv_mean_f1']))
-    lines = ['# Three Project 1 experiments', '',
-             '| Attempt | Representation | Exploratory BA | 3-fold BA mean | Fold SD | 3-fold F1 |',
-             '| --- | --- | --- | --- | --- | --- |']
+    # The leaderboard ranks by F1, then accuracy; BA rows use a BA-selected threshold.
+    completed.sort(key=lambda row: (-row['cv_mean_f1'], -row['cv_mean_accuracy']))
+    lines = ['# Project 1 experiments', '',
+             '| Attempt | Representation | Threshold metric | 3-fold F1 | 3-fold accuracy | 3-fold BA | BA fold SD |',
+             '| --- | --- | --- | --- | --- | --- | --- |']
     for row in completed:
-        lines.append(f'| {row["attempt"]} | {row["representation"]} | {row["balanced_accuracy"]:.4f} | '
-                     f'{row["cv_mean_balanced_accuracy"]:.4f} | {row["cv_std_balanced_accuracy"]:.4f} | {row["cv_mean_f1"]:.4f} |')
+        lines.append(f'| {row["attempt"]} | {row["representation"]} | {row["threshold_metric"]} | {row["cv_mean_f1"]:.4f} | '
+                     f'{row["cv_mean_accuracy"]:.4f} | {row["cv_mean_balanced_accuracy"]:.4f} | {row["cv_std_balanced_accuracy"]:.4f} |')
     if completed:
-        lines += ['', 'Highest observed confirmation mean: **' + completed[0]['attempt'] + '**.',
-                  'Only three preselected finalists were confirmed. Small differences and overlapping fold variability',
+        lines += ['', 'Highest observed confirmation F1: **' + completed[0]['attempt'] + '**.',
+                  'Only one preselected finalist per attempt was confirmed. Small differences and overlapping fold variability',
                   'do not establish a decisive winner; recipes were selected earlier using overlapping exploratory data.',
                   'Each attempt has its own local, all-training refit and submission; nothing was uploaded.', '']
     lines += ['', '## Local artifacts', '']

@@ -14,7 +14,7 @@ from .representations import save_representation
 
 sys.path.insert(0, str(PROJECT_DIR / 'Mandatory Functions'))
 from implementations_augmented import (
-    classification_metrics, find_best_threshold, fit_mse_sgd,
+    classification_metrics, find_best_threshold, fit_mse_sgd, fit_reg_logistic_newton,
     fit_reg_logistic_regression, linear_predict_scores, logistic_predict_proba,
 )
 
@@ -50,7 +50,28 @@ def metric_values(y_pm1, scores, threshold):
             'predicted_positive_fraction': float(np.mean(predicted == 1))}
 
 
+def predict_scores(model, tx, w):
+    """Linear scores for MSE; probabilities for logistic and Newton models."""
+    if model == 'mse':
+        return linear_predict_scores(tx, w)
+    return logistic_predict_proba(tx, w)
+
+
+def fit_newton(y_pm1, tx, params, *, tx_val=None, y_val_pm1=None, history=False):
+    """Full-batch Newton L2 logistic; runs to the gradient tolerance, no early stopping."""
+    y_val = None if y_val_pm1 is None else ((y_val_pm1 + 1) / 2).astype(int)
+    return fit_reg_logistic_newton(((y_pm1 + 1) / 2).astype(int), tx, params['lambda_'],
+                                   np.zeros(tx.shape[1]), params['max_iters'],
+                                   gradient_tol=params['gradient_tol'], penalize_intercept=False,
+                                   tx_val=tx_val, y_val=y_val, return_history=history)
+
+
 def fit_model(bundle, params, *, history=True):
+    if params['model'] == 'newton':
+        start = time.perf_counter()
+        result = fit_newton(bundle['train_y'], bundle['train'], params, tx_val=bundle['validation'],
+                            y_val_pm1=bundle['validation_y'], history=history)
+        return result, time.perf_counter() - start
     options = {key: value for key, value in params.items() if key not in {'model', 'lambda_'}}
     options.update(initial_w=np.zeros(bundle['train'].shape[1]),
                    tx_val=bundle['validation'], return_history=history)
@@ -67,17 +88,29 @@ def fit_model(bundle, params, *, history=True):
     return result, seconds
 
 
-def rank_key(row):
+SELECTION_METRICS = ('balanced_accuracy', 'f1')
+
+
+def selection_metric(config):
+    """An attempt ranks runs and picks thresholds by BA (default) or by F1."""
+    metric = config.get('selection_metric', 'balanced_accuracy')
+    if metric not in SELECTION_METRICS:
+        raise ValueError('selection_metric must be one of ' + ', '.join(SELECTION_METRICS))
+    return metric
+
+
+def rank_key(row, metric='balanced_accuracy'):
     if row['status'] != 'ok':
         return (-1, -1, -1, -1)
-    return tuple(row[key] for key in ['balanced_accuracy', 'f1', 'recall', 'precision']) + (-row['actual_updates'],)
+    order = [metric] + [key for key in ['balanced_accuracy', 'f1', 'recall', 'precision'] if key != metric]
+    return tuple(row[key] for key in order) + (-row['actual_updates'],)
 
 
-def best(rows):
+def best(rows, metric='balanced_accuracy'):
     good = [row for row in rows if row['status'] == 'ok']
     if not good:
         raise RuntimeError('No finite successful configuration in this search stage')
-    return max(good, key=rank_key)
+    return max(good, key=lambda row: rank_key(row, metric))
 
 
 def new_log(context, attempt, config):
@@ -98,7 +131,7 @@ def run_candidate(log, bundle, recipe, params, stage):
            'stage': stage, 'model': params['model'], 'status': 'failed', 'error': '',
            'feature_count': bundle['train'].shape[1] - 1, 'matrix_memory_mb': bundle['matrix_memory_mb'],
            'lambda': params.get('lambda_'), 'gamma': params['gamma'], 'batch_size': params['batch_size'],
-           'lr_schedule': params['lr_schedule'], 'lr_decay': params['lr_decay'],
+           'lr_schedule': params.get('lr_schedule', ''), 'lr_decay': params.get('lr_decay'),
            'max_updates': params['max_iters'], 'actual_updates': 0, 'best_iteration': None,
            'best_validation_loss': None, 'stop_reason': '', 'threshold': None,
            'training_runtime_seconds': 0.0, 'preprocessing_runtime_seconds': bundle['preprocessing_seconds'],
@@ -113,13 +146,13 @@ def run_candidate(log, bundle, recipe, params, stage):
         row.update(training_runtime_seconds=seconds, actual_updates=result.n_updates,
                    best_iteration=result.best_iteration, best_validation_loss=result.best_validation_loss,
                    stop_reason=result.stop_reason, train_loss=result.loss,
-                   training_data_passes=result.n_updates * min(params['batch_size'], len(bundle['train'])) / len(bundle['train']))
+                   training_data_passes=result.n_updates * min(params['batch_size'] or len(bundle['train']),
+                                                               len(bundle['train'])) / len(bundle['train']))
         if result.stop_reason == 'non_finite' or not np.isfinite(result.w).all():
             raise FloatingPointError('Augmented fitter detected nonfinite optimization')
-        scores = (linear_predict_scores(bundle['validation'], result.w) if params['model'] == 'mse'
-                  else logistic_predict_proba(bundle['validation'], result.w))
+        scores = predict_scores(params['model'], bundle['validation'], result.w)
         before = result.w.copy()
-        threshold, _ = find_best_threshold(bundle['validation_y'], scores)
+        threshold, _ = find_best_threshold(bundle['validation_y'], scores, metric=selection_metric(log['config']))
         np.testing.assert_array_equal(before, result.w)
         default_threshold = 0.0 if params['model'] == 'mse' else 0.5
         selected = metric_values(bundle['validation_y'], scores, threshold)
@@ -153,7 +186,8 @@ def run_candidate(log, bundle, recipe, params, stage):
 def select(log, row):
     payload = {'attempt': log['attempt'], 'best_run': row, 'model_params': log['params'][row['run_id']],
                'recipe': log['recipes'][row['run_id']], 'split': log['context']['metadata'],
-               'previous_benchmark': PREVIOUS_BENCHMARK, 'confirmation_complete': False}
+               'previous_benchmark': PREVIOUS_BENCHMARK, 'selection_metric': selection_metric(log['config']),
+               'confirmation_complete': False}
     write_json(log['output'] / 'selection.json', payload)
     scores = np.load(log['output'] / 'runs' / row['run_id'] / 'validation_scores.npy')
     values = np.unique(np.r_[np.quantile(scores, np.linspace(0, 1, 41)), row['threshold'], 0 if row['model'] == 'mse' else 0.5])
