@@ -2,6 +2,8 @@
 
 > **If an agent makes meaningful progress, changes architecture, completes a pending task, adds a new experiment, or discovers an important issue, it must update `agentic_readme.md` before finishing its work.**
 
+> **Agents must log new design decisions in [bible.md](bible.md), appending entries at the end only. Never edit, delete or reorder earlier entries; append corrections or superseding decisions with references to the original entries.**
+
 ## Goal
 
 Build reproducible coronary-disease classifiers, compare representations fairly, and produce local Project 1 submissions. This guide assumes familiarity with the project specification.
@@ -10,6 +12,7 @@ Build reproducible coronary-disease classifiers, compare representations fairly,
 
 | Location / authority | Role |
 | --- | --- |
+| [bible.md](bible.md) | Detailed behind-the-scenes reasoning behind project design choices: evidence, tradeoffs, rejected alternatives and how decisions evolved. Read the relevant sections before changing a design. Preserve this project-wide reasoning history in append-only mode. |
 | `dataset/` | Local CSV inputs; `architecture.md` records ordered fields/types. Preserve raw files and ID order. |
 | [Mandatory Functions/README.md](<Mandatory Functions/README.md>) | `implementations.py`: six stable course/autograder functions. Keep this API separate from experimental extensions. |
 | [Mandatory Functions/README_augmented.md](<Mandatory Functions/README_augmented.md>) | `implementations_augmented.py`: reusable fitters, stopping/history, weighting, metrics and threshold selection. Extend/reuse this layer for modeling. |
@@ -37,6 +40,7 @@ Datasets, labs, generated reports/models/submissions, and saved split indices ar
 - Feature processing is implemented/tested, including state reload and leakage checks. Full-data processing and 100k-row ablations were executed. Older fixed-setting ablations favored minimal processing; subsequent retuning selected **R2 curated**, so added preprocessing is neither automatically beneficial nor disproven.
 - All three experiment searches, three-fold finalist confirmations, and all-data refits were executed. Current confirmation mean BA: logistic **77.45%**, target encoding **77.57%**, MSE-SGD **77.10%**. The small encoding advantage is below the configured material-gain criterion; different regularization also limits attribution.
 - Each attempt has local `outputs/selection.json`, `cv_metrics.csv`, `experiment_report.md`, saved preprocessing/weights and a 109,379-row `submission.csv`. Final refits use all 328,135 labeled rows. ID order, label domain and reload predictions were checked; experiment tests passed. Nothing was uploaded.
+- The bible was audited against current code, full-data EDA recomputation and saved experiment scores/metadata; all 91 local tests passed. It distinguishes measured results from causal hypotheses, partition-dependent feature counts, five-fold OOF encoding, three-fold confirmation and frozen final refits. Small fold SD and TE2's slight gain do not establish absence of overfitting or an isolated encoding benefit.
 
 ### In progress
 
@@ -50,7 +54,7 @@ No active assignment or ownership ledger is recorded in the repository. Confirm 
 
 ## Working rules for agents
 
-1. Read this guide, the assigned folder's README/config, and `git status` before editing; preserve existing teammate changes.
+1. Read this guide, relevant reasoning in [bible.md](bible.md), the assigned folder's README/config, and `git status` before editing; preserve existing teammate changes.
 2. Search for existing functionality, then extend shared infrastructure where appropriate. Coordinate shared-module edits; keep unrelated experiment folders untouched. Avoid stylistic refactors of working code.
 3. Use saved metadata/reports to inspect results. Follow documented run phases deliberately: default experiment execution performs costly searches/refits. Run relevant tests from the affected layer; their commands are in its README.
 4. Keep source/config changes separate from ignored run artifacts. Check split/config provenance before reusing results, and distinguish implemented, tested, executed and validated claims.
@@ -58,3 +62,5 @@ No active assignment or ownership ledger is recorded in the repository. Confirm 
 ## Updating this file
 
 Keep the map, decisions, status and pending work current. Replace stale statements rather than appending a changelog; record only information that changes the next agent's actions.
+
+For each new design decision, also append a dated entry to [bible.md](bible.md) before finishing: state the decision, rationale, evidence or artifact links, and relevant alternatives/tradeoffs. Identify any earlier decision it corrects or supersedes. This guide stays a concise current overview; the bible retains the full chronological reasoning history, including decisions later reversed.
