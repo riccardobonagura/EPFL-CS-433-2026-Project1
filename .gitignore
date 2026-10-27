@@ -9,6 +9,10 @@
 /Exploratory Analysis/eda_outputs/
 /Exploratory Analysis/baseline_diagnostics/
 /feature_processing/outputs/
+/ml_attempts/*/outputs/
+/ml_attempts/shared_split/
+/ml_attempts/model_comparison.csv
+/ml_attempts/summary.md
 
 # Python bytecode and tool caches
 __pycache__/
