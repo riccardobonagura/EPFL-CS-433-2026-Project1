@@ -42,3 +42,13 @@ No Project 1 PDF or official Project 1 grading tests were present when this was
 implemented; the local labs provide the course conventions and reference cases.
 For submission, place this folder's `implementations.py` at the location expected
 by the course grader.
+
+## Experimental augmented API
+
+`implementations_augmented.py` provides separate `fit_*` functions returning
+`FitResult`, with optional sample weights, deterministic mini-batches, validation
+stopping, intercept-penalty control, and prediction/threshold helpers. It does
+not change or replace `implementations.py` or its autograder API.
+
+See [README_augmented.md](README_augmented.md) for mathematical conventions,
+selection behavior, and usage examples.

@@ -8,6 +8,7 @@
 # Reproducible analysis outputs (reports, tables, figures, and run metadata)
 /Exploratory Analysis/eda_outputs/
 /Exploratory Analysis/baseline_diagnostics/
+/feature_processing/outputs/
 
 # Python bytecode and tool caches
 __pycache__/
