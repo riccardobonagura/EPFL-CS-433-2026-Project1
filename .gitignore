@@ -1,0 +1,36 @@
+# Local data folders
+/data/
+/dataset/
+
+# Local lab files
+/labs/
+
+# Reproducible analysis outputs (reports, tables, figures, and run metadata)
+/Exploratory Analysis/eda_outputs/
+/Exploratory Analysis/baseline_diagnostics/
+
+# Python bytecode and tool caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.coverage
+.coverage.*
+htmlcov/
+
+# Local Python environments and environment settings
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# Local editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
