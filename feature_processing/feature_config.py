@@ -85,6 +85,7 @@ DEFAULT_CONFIG = {
 
 
 def get_config(profile='curated_v1', **overrides):
+    """Return a validated copy of the default config for a named profile, with overrides."""
     if profile not in {'minimal', 'curated_v1', 'curated_v1_engineered', 'compact_target_encoded'}:
         raise ValueError('Unknown preprocessing profile: ' + str(profile))
     config = copy.deepcopy(DEFAULT_CONFIG)
@@ -122,5 +123,6 @@ def load_eda_hypotheses(path):
 
 
 def load_semantic_review(path):
+    """Read the feature names listed in a semantic-review CSV."""
     with open(path, newline='', encoding='utf-8') as stream:
         return [row['feature_name'] for row in csv.DictReader(stream)]

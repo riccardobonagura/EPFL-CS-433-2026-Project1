@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 def refine_mse_report(output):
+    """Append the step-size and convergence discussion to the MSE-SGD report."""
     output = Path(output)
     with (output / 'all_runs.csv').open(newline='', encoding='utf-8') as stream:
         rows = [row for row in csv.DictReader(stream) if row['status'] == 'ok']

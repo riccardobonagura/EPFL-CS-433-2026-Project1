@@ -23,6 +23,7 @@ from ml_attempts.representations import base_recipes, fit_representation, load_r
 
 
 def fixture(root, n=2400):
+    """Write a small synthetic dataset folder for end-to-end tests."""
     folder = root / 'dataset'
     folder.mkdir()
     rng = np.random.default_rng(433)
@@ -51,6 +52,7 @@ def fixture(root, n=2400):
 
 
 def tiny_configs():
+    """Shrink every attempt's search so the full pipeline runs in seconds."""
     configs = copy.deepcopy(load_configs())
     configs[ATTEMPTS[0]].update(lambda_values=[0.001, 0.01], gamma_values=[0.03, 0.1],
                                batch_size=32, max_updates=6, eval_every=2, patience=2)
@@ -66,7 +68,9 @@ def tiny_configs():
 
 
 class ExperimentTests(unittest.TestCase):
+    """Checks of the experiment pipeline, including a tiny end-to-end run."""
     def test_shared_indices_match_existing_preprocessing_split(self):
+        """The shared split equals the preprocessing split for the same seeds."""
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             fixture(root, 600)
@@ -79,12 +83,14 @@ class ExperimentTests(unittest.TestCase):
             self.assertFalse(np.intersect1d(context['train'], context['validation']).size)
 
     def test_outer_folds_are_stratified_disjoint_and_cover_every_row(self):
+        """The 3 folds are disjoint, stratified and cover every row."""
         y = np.r_[-np.ones(90), np.ones(30)]
         folds = stratified_folds(y)
         np.testing.assert_array_equal(np.sort(np.concatenate(folds)), np.arange(len(y)))
         self.assertTrue(all(np.mean(y[fold] == 1) == 0.25 for fold in folds))
 
     def test_selective_recovery_is_oof_and_quarantine_remains_excluded(self):
+        """TE2 recovery is out-of-fold and never uses quarantined fields."""
         with tempfile.TemporaryDirectory() as temporary:
             x, y, names = fixture(Path(temporary))
             recipe = copy.deepcopy(base_recipes()['R0 minimal'])
@@ -99,6 +105,7 @@ class ExperimentTests(unittest.TestCase):
             self.assertEqual(transform_representation(x[:2], names, state).shape[1], first.shape[1])
 
     def test_selection_metric_orders_runs(self):
+        """Runs are ranked by the configured selection metric."""
         rows = [dict(run_id='ba', status='ok', balanced_accuracy=0.80, f1=0.36, recall=0.8, precision=0.2, actual_updates=5),
                 dict(run_id='f1', status='ok', balanced_accuracy=0.74, f1=0.42, recall=0.5, precision=0.3, actual_updates=5)]
         self.assertEqual(best(rows)['run_id'], 'ba')
@@ -107,6 +114,7 @@ class ExperimentTests(unittest.TestCase):
             selection_metric({'selection_metric': 'accuracy'})
 
     def test_metrics_share_augmented_definitions_and_pm1_thresholds(self):
+        """Pipeline metrics match the augmented definitions for {-1, +1} labels."""
         metrics = metric_values(np.array([-1, -1, 1, 1]), np.array([-2.0, 0.5, 0.2, 1]), 0)
         self.assertEqual(metrics['tp'], 2)
         self.assertEqual(metrics['fp'], 1)
@@ -114,6 +122,7 @@ class ExperimentTests(unittest.TestCase):
         self.assertEqual(metrics['predicted_positive_fraction'], 0.75)
 
     def test_saved_recovery_representation_reloads_without_training_data(self):
+        """A saved representation transforms new rows without training data."""
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             x, y, names = fixture(root)
@@ -126,12 +135,14 @@ class ExperimentTests(unittest.TestCase):
                                           transform_representation(x[:10], names, restored))
 
     def test_final_export_requires_confirmation_before_test_access(self):
+        """The test file is read only after confirmation is complete."""
         with patch('ml_attempts.confirmation.load_unlabeled_csv') as loader:
             with self.assertRaises(ValueError):
                 final_refit({}, {'confirmation_complete': False})
             loader.assert_not_called()
 
     def test_submission_order_and_label_validation(self):
+        """Submissions keep ID order and only contain -1/+1 labels."""
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / 'submission.csv'
             write_submission(path, ['z', 'a'], np.array([1, -1]))
@@ -141,6 +152,7 @@ class ExperimentTests(unittest.TestCase):
                 write_submission(path, ['z', 'a'], np.array([0, 1]))
 
     def test_stdlib_numpy_figures_have_valid_png_and_svg_headers(self):
+        """NumPy-drawn charts are valid PNG and SVG files."""
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / 'example.png'
             chart(path, 'Example', ['A', 'B'], {'BA': [0.5, 0.8]}, 'Stage', 'Balanced accuracy', unit_interval=True)
@@ -148,6 +160,7 @@ class ExperimentTests(unittest.TestCase):
             self.assertIn('<svg', path.with_suffix('.svg').read_text(encoding='utf-8'))
 
     def test_mse_interpretation_detects_selected_threshold_decline(self):
+        """The MSE report flags when a longer budget lowers the selected metric."""
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
             rows = [dict(status='ok', stage='classification_checkpoint', max_updates=4000,
@@ -166,6 +179,7 @@ class ExperimentTests(unittest.TestCase):
             self.assertIn('78.000% -> 77.000%', report)
 
     def test_all_attempts_confirmation_and_full_refits_end_to_end(self):
+        """All five attempts run search, confirmation and refit end to end."""
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             fixture(root)
@@ -173,6 +187,7 @@ class ExperimentTests(unittest.TestCase):
             context = load_context(root)
             from ml_attempts.confirmation import load_unlabeled_csv
             def guarded_test_loader(path):
+                """Fail if the test file is read before every attempt is confirmed."""
                 for name in ATTEMPTS:
                     selection = json.loads((root / 'ml_attempts' / name / 'outputs/selection.json').read_text(encoding='utf-8'))
                     self.assertTrue(selection['confirmation_complete'])

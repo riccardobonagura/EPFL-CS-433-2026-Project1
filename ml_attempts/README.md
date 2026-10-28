@@ -73,8 +73,9 @@ hashes prevent accidental reuse on changed data.
 Logistic receives explicit `(y_pm1 + 1)/2` labels. MSE receives {-1,+1} directly.
 Both use augmented binary metrics with positive label 1. Accuracy, balanced
 accuracy, F1, precision, recall, specificity and all confusion counts are saved,
-alongside actual/predicted positive fractions. Selection ranks balanced accuracy,
-then F1, recall and precision; exact metric ties prefer fewer performed updates.
+alongside actual/predicted positive fractions. Selection ranks F1 (each config's
+`selection_metric`), then balanced accuracy, recall and precision; exact metric ties
+prefer fewer performed updates.
 No run is selected on ordinary accuracy alone.
 
 Every run reports the standard threshold (0.5 probability or 0 linear score) and

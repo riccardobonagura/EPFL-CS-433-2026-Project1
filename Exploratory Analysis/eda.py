@@ -140,6 +140,7 @@ def infer_candidate_type(name, unique_count, unique_fraction, integer_like, obse
 
 
 def semantic_review_reasons(name, kind, unique_fraction):
+    """Reasons a field needs a manual leakage/metadata review (empty list if none)."""
     reasons = []
     if kind in {'identifier', 'high-cardinality suspicious', 'date-like'}:
         reasons.append('record/date/identity information: review provenance and split dependence')
@@ -155,6 +156,7 @@ def semantic_review_reasons(name, kind, unique_fraction):
 
 
 def _rate(positive_count, count):
+    """positive_count / count, or NaN when count is zero."""
     return float(positive_count / count) if count else np.nan
 
 
@@ -349,6 +351,7 @@ def pairwise_complete_correlation(sample, min_support=MIN_PAIR_SUPPORT):
 
 
 def analyze_redundancy(data, summaries, sample_indices):
+    """Find highly correlated numeric field pairs on a row sample."""
     numeric = [r for r in summaries if r['candidate_feature_type'] in NUMERIC_TYPES]
     sample = data[np.ix_(sample_indices, [r['column_index'] for r in numeric])]
     correlation, counts = pairwise_complete_correlation(sample)
@@ -385,6 +388,7 @@ def analyze_redundancy(data, summaries, sample_indices):
 
 
 def write_csv(path, rows, empty_header):
+    """Write dict rows as CSV (header only if empty)."""
     keys = list(rows[0]) if rows else empty_header
     with path.open('w', newline='', encoding='utf-8') as stream:
         writer = csv.DictWriter(stream, fieldnames=keys)
@@ -395,6 +399,7 @@ def write_csv(path, rows, empty_header):
 
 
 def missingness_bands(summaries):
+    """Count fields per missing-fraction band (0%, up to 1%, ..., over 95%)."""
     fractions = np.array([r['missing_fraction'] for r in summaries])
     edges = [0, 0.01, 0.1, 0.3, 0.5, 0.8, 0.95, 1]
     rows = [('0%', int((fractions == 0).sum()))]
@@ -405,12 +410,14 @@ def missingness_bands(summaries):
 
 
 def _format(value):
+    """Format a value for a Markdown table cell."""
     if isinstance(value, (float, np.floating)):
         return f'{value:.4g}' if np.isfinite(value) else 'not available'
     return str(value).replace('|', '/').replace('\n', ' ')
 
 
 def markdown_table(rows, columns, limit=12):
+    """Render up to limit rows as a Markdown table."""
     lines = ['| ' + ' | '.join(title for _, title in columns) + ' |',
              '| ' + ' | '.join('---' for _ in columns) + ' |']
     for row in rows[:limit]:
@@ -421,6 +428,7 @@ def markdown_table(rows, columns, limit=12):
 
 
 def generate_figures(output, summaries, y, row_missing, ranking, numeric, correlation, data, sample_indices):
+    """Save the EDA matplotlib figures (missingness, target rates, correlations)."""
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -430,6 +438,7 @@ def generate_figures(output, summaries, y, row_missing, ranking, numeric, correl
     figures.mkdir(parents=True, exist_ok=True)
 
     def save(fig, name):
+        """Save one figure as PNG and close it."""
         fig.tight_layout()
         fig.savefig(figures / name, dpi=140, metadata={'Software': 'Project 1 NumPy EDA'})
         plt.close(fig)
@@ -519,6 +528,7 @@ def generate_figures(output, summaries, y, row_missing, ranking, numeric, correl
 
 def write_report(output, integrity, y, summaries, missing_rows, codes, categories,
                  ranking, reviews, row_missing, duplicates, patterns, pairs, agreements, sample_size):
+    """Write the Markdown EDA report from the computed summaries."""
     n, d = len(y), len(summaries)
     prevalence = float(np.mean(y == 1))
     types = Counter(r['candidate_feature_type'] for r in summaries)
@@ -772,6 +782,7 @@ def write_report(output, integrity, y, summaries, missing_rows, codes, categorie
 
 
 def main(argv=None):
+    """CLI: run the full EDA on the training files and write tables, figures and the report."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-dir', type=Path, default=Path(__file__).resolve().parents[1] / 'dataset')
     parser.add_argument('--output-dir', type=Path, default=Path(__file__).resolve().parent / 'eda_outputs')

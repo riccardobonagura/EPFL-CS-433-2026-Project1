@@ -1,14 +1,20 @@
 """Deterministic contract, course-reference, and numerical sanity checks."""
 
+import sys
 import unittest
+from pathlib import Path
 
 import numpy as np
 
+# The graded implementations.py lives at the repository root.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import implementations as impl
 
 
 class MandatoryFunctionsTests(unittest.TestCase):
+    """Checks of the six graded methods against the lab references."""
     def setUp(self):
+        """Build a small random regression/classification problem."""
         rng = np.random.default_rng(433)
         self.tx = rng.normal(size=(10, 3))
         self.y = rng.normal(size=10)
@@ -16,6 +22,7 @@ class MandatoryFunctionsTests(unittest.TestCase):
         self.initial_w = np.array([0.1, -0.2, 0.3])
 
     def test_shapes_final_losses_and_input_preservation(self):
+        """Weights are 1-D, losses match the final weights, inputs are not modified."""
         original_inputs = [a.copy() for a in (self.y, self.labels, self.tx, self.initial_w)]
         calls = [
             (impl.mean_squared_error_gd, self.y, (self.initial_w, 7, 0.1), False),
@@ -47,6 +54,7 @@ class MandatoryFunctionsTests(unittest.TestCase):
             np.testing.assert_array_equal(actual, original)
 
     def test_zero_iterations(self):
+        """With max_iters=0 the initial weights and their loss are returned."""
         for method, y, extra in [
             (impl.mean_squared_error_gd, self.y, ()),
             (impl.mean_squared_error_sgd, self.y, ()),
@@ -65,6 +73,7 @@ class MandatoryFunctionsTests(unittest.TestCase):
 
     def test_gd_exact_update_count(self):
         # One sample with x=1, y=1 yields w_k = 1 - (1-gamma)^k.
+        """GD performs exactly max_iters updates."""
         w, loss = impl.mean_squared_error_gd(
             np.ones(1), np.ones((1, 1)), np.zeros(1), 5, 0.2
         )
@@ -73,6 +82,7 @@ class MandatoryFunctionsTests(unittest.TestCase):
 
     def test_sgd_lab_sampling_and_update_count(self):
         # Replay lab 2's batch_iter(batch_size=1, num_batches=1) sampling.
+        """SGD samples one row per step like the lab and does max_iters steps."""
         expected = self.initial_w.copy()
         np.random.seed(433)
         for _ in range(17):
@@ -86,11 +96,13 @@ class MandatoryFunctionsTests(unittest.TestCase):
         self.assertEqual(np.random.randint(1000), expected_next_draw)
 
     def test_least_squares_normal_equations(self):
+        """Least squares satisfies the normal equations."""
         w, _ = impl.least_squares(self.y, self.tx)
         np.testing.assert_allclose(self.tx.T @ (self.tx @ w - self.y), 0, atol=1e-12)
 
     def test_ridge_lab_reference_and_zero_penalty(self):
         # Reference from labs/ex04/solution/ridge_regression.py.
+        """Ridge matches the lab formula and equals least squares at lambda 0."""
         w, _ = impl.ridge_regression(
             np.array([0.1, 0.2]), np.array([[2.3, 3.2], [1.0, 0.1]]), 1
         )
@@ -102,6 +114,7 @@ class MandatoryFunctionsTests(unittest.TestCase):
 
     def test_logistic_lab_update_references(self):
         # Reference updates from labs/ex05/solution/ex05.ipynb, flattened to 1-D.
+        """Logistic GD steps match the lab reference updates."""
         y = np.array([0.0, 1.0])
         tx = np.arange(6).reshape(2, 3)
         initial_w = np.array([0.1, 0.2, 0.3])
@@ -114,12 +127,14 @@ class MandatoryFunctionsTests(unittest.TestCase):
                 np.testing.assert_allclose(w, expected, atol=5e-9)
 
     def test_logistic_zero_penalty(self):
+        """Regularized logistic with lambda 0 equals plain logistic."""
         ordinary = impl.logistic_regression(self.labels, self.tx, self.initial_w, 9, 0.1)
         regularized = impl.reg_logistic_regression(self.labels, self.tx, 0, self.initial_w, 9, 0.1)
         np.testing.assert_allclose(ordinary[0], regularized[0])
         self.assertEqual(ordinary[1], regularized[1])
 
     def test_logistic_exact_update_count(self):
+        """Logistic GD performs exactly max_iters updates."""
         expected = self.initial_w.copy()
         for _ in range(9):
             probability = 1 / (1 + np.exp(-self.tx @ expected))
@@ -130,6 +145,7 @@ class MandatoryFunctionsTests(unittest.TestCase):
         np.testing.assert_allclose(w, expected)
 
     def test_logistic_extreme_scores(self):
+        """Logistic loss and gradient stay finite for very large scores."""
         scores = np.array([-1000.0, -1.0, 0.0, 1.0, 1000.0])
         with np.errstate(over='raise', invalid='raise', divide='raise'):
             probabilities = impl._sigmoid(scores)

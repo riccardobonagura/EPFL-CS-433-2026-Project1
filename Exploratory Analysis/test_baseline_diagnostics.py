@@ -14,7 +14,9 @@ import baseline_diagnostics as diagnostics
 
 
 class BaselineDiagnosticsTests(unittest.TestCase):
+    """Unit and end-to-end checks of baseline_diagnostics.py on synthetic data."""
     def test_stratified_sample_and_split_are_reproducible_and_disjoint(self):
+        """Same seed gives the same sample/split; parts are disjoint and stratified."""
         y = np.r_[-np.ones(900), np.ones(100)]
         sample = diagnostics.stratified_subsample(y, 200)
         np.testing.assert_array_equal(sample, diagnostics.stratified_subsample(y, 200))
@@ -31,6 +33,7 @@ class BaselineDiagnosticsTests(unittest.TestCase):
         np.testing.assert_array_equal(validation, repeated[1])
 
     def test_training_only_medians_scaling_and_all_missing_fallback(self):
+        """Imputation and scaling use training rows only; all-missing columns get a fallback."""
         train = np.array([[0.0, np.nan, 7], [2, np.nan, 7], [np.nan, np.nan, 7]])
         validation = np.array([[1000.0, 999, 9], [np.nan, np.nan, np.nan]])
         fitted, records = diagnostics.fit_preprocessing(train, ['value', 'empty', 'constant'])
@@ -47,6 +50,7 @@ class BaselineDiagnosticsTests(unittest.TestCase):
         self.assertEqual(validation[0, 0], 1000)
 
     def test_metrics_confusion_counts_and_zero_denominators(self):
+        """Metrics match known confusion counts and return 0 for empty denominators."""
         y = np.array([1, 1, -1, -1, -1])
         metrics = diagnostics.classification_metrics(y, np.array([1, -1, 1, -1, -1]))
         self.assertEqual(metrics['true_positive'], 1)
@@ -63,6 +67,7 @@ class BaselineDiagnosticsTests(unittest.TestCase):
         self.assertEqual(reference['recall'], 0)
 
     def test_numeric_response_codes_remain_observed(self):
+        """Survey codes such as 7/9 stay observed values, not missing, in the baseline."""
         x = np.array([[7.0], [9.0], [99.0], [np.nan]])
         fitted, records = diagnostics.fit_preprocessing(x, ['survey_code'])
         self.assertEqual(fitted['medians'][0], 9)
@@ -70,6 +75,7 @@ class BaselineDiagnosticsTests(unittest.TestCase):
         self.assertEqual(fitted['means'][0], np.mean([7, 9, 99, 9]))
 
     def test_loader_checks_all_ids_and_preserves_sample_order(self):
+        """Loader validates every ID and returns sampled rows in sample order."""
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'x_train.csv'
             path.write_text('value,Id,other\n7,a,\n9,b,3\n99,c,4\n', encoding='utf-8')
@@ -81,6 +87,7 @@ class BaselineDiagnosticsTests(unittest.TestCase):
                 diagnostics.load_sampled_predictors(path, ['b', 'a', 'c'], np.array([2]))
 
     def test_singular_mandatory_solve_is_recorded_without_replacement(self):
+        """A singular least-squares solve is recorded as failed, not replaced."""
         tx = np.column_stack([np.ones(8), np.zeros(8)])
         y = np.tile([-1.0, 1], 4)
         config = {'config_id': 'singular', 'model': 'least_squares', 'lambda': None,
@@ -92,6 +99,7 @@ class BaselineDiagnosticsTests(unittest.TestCase):
         self.assertEqual(predictions['status'], 'failed')
 
     def test_all_six_imported_functions_run_with_correct_targets_and_losses(self):
+        """All six methods run with the right label coding and report their losses."""
         rng = np.random.default_rng(433)
         tx = np.column_stack([np.ones(100), rng.normal(size=(100, 3))])
         y = np.where(tx[:, 1] > 0, 1.0, -1.0)
@@ -108,6 +116,7 @@ class BaselineDiagnosticsTests(unittest.TestCase):
                 self.assertEqual(predictions['finite_score_count'], 20)
 
     def test_restarted_sgd_is_deterministic_and_restores_rng(self):
+        """Seeded SGD runs repeat exactly and leave the global RNG state unchanged."""
         tx = np.column_stack([np.ones(20), np.arange(20) / 20])
         y = np.tile([-1.0, 1], 10)
         config = {'config_id': 'sgd', 'model': 'mean_squared_error_sgd', 'lambda': None,
@@ -123,6 +132,7 @@ class BaselineDiagnosticsTests(unittest.TestCase):
             self.assertEqual(first[key], second[key])
 
     def test_convergence_changes_compare_matching_model_and_penalty(self):
+        """Convergence comparisons pair runs with the same model and penalty."""
         first = {'model': 'logistic_regression', 'lambda': None, 'max_iters': 10,
                  'status': 'ok', 'train_loss': 0.5, 'training_objective': 0.5,
                  'balanced_accuracy': 0.6}
@@ -136,6 +146,7 @@ class BaselineDiagnosticsTests(unittest.TestCase):
         self.assertTrue(records[1]['materially_changing_flag'])
 
     def test_end_to_end_creates_only_separate_outputs(self):
+        """A full run writes only to its own output folder."""
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             data, output = root / 'data', root / 'results'

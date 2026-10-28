@@ -35,12 +35,14 @@ class FitResult:
 
 
 def _check_integer(value, name, minimum):
+    """Return value as int, raising ValueError if it is not an integer >= minimum."""
     if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)) or value < minimum:
         raise ValueError(f'{name} must be an integer >= {minimum}')
     return int(value)
 
 
 def _check_scalar(value, name, minimum=0.0, strictly_positive=False):
+    """Return value as float, raising ValueError if not finite or below minimum."""
     if not np.isscalar(value):
         raise ValueError(f'{name} must be a finite scalar')
     try:
@@ -54,6 +56,7 @@ def _check_scalar(value, name, minimum=0.0, strictly_positive=False):
 
 
 def _validate_data(y, tx, *, logistic=False):
+    """Check y (N,) and tx (N, D) are finite and aligned; labels in {0, 1} if logistic."""
     y, tx = np.asarray(y, dtype=float), np.asarray(tx, dtype=float)
     if tx.ndim != 2:
         raise ValueError('tx must be a 2-D array of shape (N, D)')
@@ -71,6 +74,7 @@ def _validate_data(y, tx, *, logistic=False):
 
 
 def _validate_weights(sample_weight, n):
+    """Check sample weights are finite, nonnegative, (N,) and not all zero."""
     if sample_weight is None:
         return None
     weights = np.asarray(sample_weight, dtype=float)
@@ -83,6 +87,7 @@ def _validate_weights(sample_weight, n):
 
 def _weight_probabilities(weights):
     # Scaling first avoids overflow when finite weights have an enormous sum.
+    """Normalize sample weights into sampling probabilities."""
     scaled = weights / np.max(weights)
     return scaled / np.sum(scaled)
 
@@ -96,6 +101,7 @@ def _compute_mse(y, tx, w, sample_weight=None):
 
 
 def _compute_mse_gradient(y, tx, w, sample_weight=None):
+    """Gradient of the (optionally weighted) half-MSE."""
     error = y - tx @ w
     if sample_weight is None:
         return -(tx.T @ error) / len(y)
@@ -103,6 +109,7 @@ def _compute_mse_gradient(y, tx, w, sample_weight=None):
 
 
 def _sigmoid(t):
+    """Numerically stable logistic sigmoid."""
     t = np.asarray(t, dtype=float)
     exp_negative_abs = np.exp(-np.abs(t))
     return np.where(t >= 0, 1.0 / (1.0 + exp_negative_abs),
@@ -110,6 +117,7 @@ def _sigmoid(t):
 
 
 def _compute_logistic_loss(y, tx, w, sample_weight=None):
+    """Mean (optionally weighted) logistic negative log likelihood."""
     scores = tx @ w
     losses = np.logaddexp(0.0, np.where(y == 1, -scores, scores))
     if sample_weight is None:
@@ -118,6 +126,7 @@ def _compute_logistic_loss(y, tx, w, sample_weight=None):
 
 
 def _compute_logistic_gradient(y, tx, w, sample_weight=None):
+    """Gradient of the (optionally weighted) logistic loss."""
     error = _sigmoid(tx @ w) - y
     if sample_weight is None:
         return tx.T @ error / len(y)
@@ -125,6 +134,7 @@ def _compute_logistic_gradient(y, tx, w, sample_weight=None):
 
 
 def _penalty_mask(d, penalize_intercept, intercept_index):
+    """Per-coefficient L2 mask: ones, with the intercept set to 0 unless penalized."""
     index = _check_integer(intercept_index, 'intercept_index', 0)
     if index >= d:
         raise ValueError('intercept_index must be in range [0, D)')
@@ -149,6 +159,7 @@ def _batch_indices(n, batch_size, seed, shuffle):
 
 
 def _learning_rate(gamma, update, schedule, decay):
+    """Step size at an update: constant, gamma/sqrt(t) or gamma/(1 + decay*t)."""
     if schedule == 'sqrt':
         return gamma / np.sqrt(update)
     if schedule == 'inverse':
@@ -448,6 +459,7 @@ def make_class_weights(y, positive_weight=1.0, negative_weight=1.0):
 
 
 def linear_predict_scores(tx, w):
+    """Linear scores tx @ w."""
     tx, w = np.asarray(tx, dtype=float), np.asarray(w, dtype=float)
     if tx.ndim != 2 or w.ndim != 1 or tx.shape[1] != len(w):
         raise ValueError('tx must have shape (N, D) and w must have shape (D,)')
@@ -457,6 +469,7 @@ def linear_predict_scores(tx, w):
 
 
 def _validate_threshold(threshold):
+    """Return threshold as float, rejecting non-scalars and NaN."""
     if not np.isscalar(threshold):
         raise ValueError('threshold must be a scalar')
     threshold = float(threshold)
@@ -466,19 +479,23 @@ def _validate_threshold(threshold):
 
 
 def linear_predict(tx, w, threshold=0.0, positive_label=1, negative_label=-1):
+    """Labels from linear scores: positive_label if score >= threshold."""
     return np.where(linear_predict_scores(tx, w) >= _validate_threshold(threshold),
                     positive_label, negative_label)
 
 
 def logistic_predict_proba(tx, w):
+    """Predicted probabilities sigmoid(tx @ w)."""
     return _sigmoid(linear_predict_scores(tx, w))
 
 
 def logistic_predict(tx, w, threshold=0.5):
+    """Labels in {0, 1} from probabilities cut at threshold."""
     return (logistic_predict_proba(tx, w) >= _validate_threshold(threshold)).astype(int)
 
 
 def _validate_binary_labels(y, positive_label):
+    """Check labels are 1-D with at most two classes, one being positive_label if two."""
     y = np.asarray(y)
     if y.ndim != 1:
         raise ValueError('Classification labels must be 1-D')
@@ -491,6 +508,7 @@ def _validate_binary_labels(y, positive_label):
 
 
 def _metrics_from_counts(tp, tn, fp, fn):
+    """Accuracy, BA, precision, recall, specificity and F1 from confusion counts."""
     divide = lambda a, b: float(a / b) if b else 0.0
     recall, specificity = divide(tp, tp + fn), divide(tn, tn + fp)
     return {

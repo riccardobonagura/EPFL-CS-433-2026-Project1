@@ -16,6 +16,7 @@ from .target_encoding import MISSING, OTHER, category_tokens, cross_fit_target_e
 
 @dataclass
 class PreprocessingState:
+    """Everything learned from training rows, JSON-serializable, to transform new rows."""
     input_features: list
     output_features: list = field(default_factory=list)
     dropped_features: list = field(default_factory=list)
@@ -44,6 +45,7 @@ class PreprocessingState:
 
 
 def _validate(x, feature_names):
+    """Check x is a finite numeric (N, D) matrix with one unique name per column."""
     x = np.asarray(x)
     names = list(feature_names)
     if x.ndim != 2 or x.shape[1] != len(names) or len(set(names)) != len(names):
@@ -58,10 +60,12 @@ def _validate(x, feature_names):
 
 
 def _key(value):
+    """Canonical string key for a numeric code (so 7, 7.0 and -0.0/0.0 match)."""
     return format(0.0 if float(value) == 0 else float(value), '.17g')
 
 
 def _normalize_codes(mapping):
+    """Validate a special-code map and key it by canonical code strings."""
     result = {}
     for name, actions in mapping.items():
         result[name] = {}
@@ -80,6 +84,7 @@ def _normalize_codes(mapping):
 
 
 def _decode(values, actions):
+    """Apply special-code actions to a column: missing -> NaN, numeric -> replacement value."""
     result = np.asarray(values, dtype=float).copy()
     for code, action in actions.items():
         selected = values == float(code)  # Simultaneous mappings, not chained replacements.
@@ -91,6 +96,7 @@ def _decode(values, actions):
 
 
 def _signature(x, names):
+    """SHA-256 of the matrix content, used to recognize the training rows again."""
     digest = hashlib.sha256()
     for name in sorted(names):
         values = np.asarray(x[:, names.index(name)], dtype='<f8').copy()
@@ -102,6 +108,7 @@ def _signature(x, names):
 
 
 def _manifest(state, source, transformation, *, output='', reason='', dropped=False, stats=None, group=''):
+    """Append one kept/dropped record describing a source or output feature."""
     stats = stats or {}
     state.manifest.append({
         'output_feature': output, 'source_feature': source, 'transformation': transformation,
@@ -113,6 +120,7 @@ def _manifest(state, source, transformation, *, output='', reason='', dropped=Fa
 
 
 def _add_output(state, output, source, transformation, stats=None, group=''):
+    """Register a new output column (names must be unique) and log it in the manifest."""
     if output in state.output_features:
         raise ValueError('Duplicate output feature name: ' + output)
     state.output_features.append(output)
@@ -120,6 +128,7 @@ def _add_output(state, output, source, transformation, stats=None, group=''):
 
 
 def _add_indicator(state, source, values, kind, registry, stats, group):
+    """Add a missing/present indicator column unless an identical one already exists."""
     indicator = np.isfinite(values) if kind == 'present' else np.isnan(values)
     output = source + '__' + kind
     digest = np.packbits(indicator).tobytes()
@@ -134,6 +143,7 @@ def _add_indicator(state, source, values, kind, registry, stats, group):
 
 
 def _prepare_numeric(values, name, config, spec=None):
+    """Apply the optional clip and log1p steps; fit their parameters when spec is None."""
     result = values.copy()
     if spec is None:
         spec = {'log1p': name in config['log1p_features']}
@@ -153,6 +163,7 @@ def _prepare_numeric(values, name, config, spec=None):
 
 
 def _fit_numeric(state, name, values, config, stats, group):
+    """Fit median imputation and standardization for one numeric field; return the scaled column."""
     values, numeric_spec = _prepare_numeric(values, name, config)
     observed = values[np.isfinite(values)]
     median = float(np.median(observed)) if len(observed) else 0.0
@@ -167,6 +178,7 @@ def _fit_numeric(state, name, values, config, stats, group):
 
 
 def _canonical_exclusions(config):
+    """Return the redundant fields to drop given each group's chosen representation."""
     excluded, groups = set(), {}
     for group, members in config['redundancy_groups'].items():
         groups.update({name: group for name in members})
@@ -365,6 +377,7 @@ def fit_preprocessor(x, feature_names, *, y=None, config=None):
 
 
 def _target_01(y, n):
+    """Convert {-1, +1} or {0, 1} labels to a {0, 1} float vector."""
     y = np.asarray(y, dtype=float)
     if y.shape != (n,):
         raise ValueError('y must be 1-D with one value per training row')
@@ -376,11 +389,13 @@ def _target_01(y, n):
 
 
 def _target_options(config):
+    """Collect the target-encoding settings from a config."""
     return {'n_folds': config['target_folds'], 'seed': config['target_seed'], 'alpha': config['target_alpha'],
             'rare_min_count': config['rare_min_count'], 'rare_min_fraction': config['rare_min_fraction']}
 
 
 def _transform(x, feature_names, state, *, target_values=None):
+    """Apply a fitted state to raw rows; return the matrix and unknown-category diagnostics."""
     x, names = _validate(x, feature_names)
     if set(names) != set(state.input_features):
         raise ValueError('Input feature names differ from the fitted schema')
@@ -451,6 +466,7 @@ def transform(x, feature_names, state):
 
 
 def transform_with_diagnostics(x, feature_names, state):
+    """Like transform, but also return unknown-category counts and matrix size."""
     return _transform(x, feature_names, state)
 
 
@@ -467,10 +483,12 @@ def fit_transform(x, feature_names, *, y=None, config=None):
 
 
 def save_state(state, path):
+    """Write a preprocessing state to a JSON file."""
     Path(path).write_text(json.dumps(asdict(state), indent=2, allow_nan=False) + '\n', encoding='utf-8')
 
 
 def load_state(path):
+    """Read a preprocessing state written by save_state."""
     values = json.loads(Path(path).read_text(encoding='utf-8'))
     if values.get('version') != 1:
         raise ValueError('Unsupported preprocessing state version')
@@ -478,6 +496,7 @@ def load_state(path):
 
 
 def write_manifest(state, path):
+    """Write the per-feature kept/dropped manifest as CSV."""
     with open(path, 'w', newline='', encoding='utf-8') as stream:
         writer = csv.DictWriter(stream, fieldnames=list(state.manifest[0]))
         writer.writeheader()

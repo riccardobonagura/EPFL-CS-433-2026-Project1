@@ -23,6 +23,7 @@ from implementations_augmented import classification_metrics, find_best_threshol
 
 
 def ablation_configs(type_hints=None, extra_quarantine=None, include_target=True):
+    """Return the ordered (label, config) ablation ladder from A0 minimal to the full profiles."""
     common = {'type_hints': type_hints or {}}
     if extra_quarantine is not None:
         common['quarantine_features'] = extra_quarantine
@@ -40,12 +41,14 @@ def ablation_configs(type_hints=None, extra_quarantine=None, include_target=True
 
 
 def _intercept(x):
+    """Prepend a column of ones to x."""
     result = np.empty((len(x), x.shape[1] + 1), dtype=float)
     result[:, 0], result[:, 1:] = 1.0, x
     return result
 
 
 def write_ablation_report(output, rows, setup, model_config):
+    """Write the Markdown report comparing every ablation on the shared split."""
     lines = ['# Processing ablation diagnostics', '',
              f'Sample: {setup["sample_rows"]:,} of {setup["source_rows"]:,} source rows; shared train/validation split hash:',
              f'`{setup["split_sha256"]}`. Sampling seed 42 and split seed 43 match baseline_diagnostics.py.', '',
@@ -93,6 +96,7 @@ def write_ablation_report(output, rows, setup, model_config):
 
 
 def figures(output, rows):
+    """Save matplotlib bar charts of the ablation metrics to output/figures."""
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -120,6 +124,7 @@ def figures(output, rows):
 
 
 def main(argv=None):
+    """CLI: fit each ablation, train one fixed L2 logistic setup and write the report."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-dir', type=Path, default=PROJECT_DIR / 'dataset')
     parser.add_argument('--output-dir', type=Path, default=Path(__file__).resolve().parent / 'outputs')

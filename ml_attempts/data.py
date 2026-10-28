@@ -13,6 +13,7 @@ from feature_processing.io_utils import (
 
 
 def load_context(root=PROJECT_DIR, *, max_rows=0):
+    """Load the training CSVs and the shared seeded 80/20 split, saving or verifying its indices."""
     root = Path(root)
     data_dir = root / 'dataset'
     ids, y = load_targets(data_dir / 'y_train.csv')
@@ -48,6 +49,7 @@ def load_context(root=PROJECT_DIR, *, max_rows=0):
 
 
 def validate_sources(context):
+    """Raise if the raw training files or ML implementation files changed during a run."""
     check_modules(context['protected'])
     for name, digest in context['metadata']['source_sha256'].items():
         if file_sha256(context['data_dir'] / name) != digest:
@@ -55,6 +57,7 @@ def validate_sources(context):
 
 
 def stratified_folds(y_pm1, n_folds=3, seed=2026):
+    """Split row indices into n_folds class-balanced folds with a fixed seed."""
     rng = np.random.default_rng(seed)
     folds = [[] for _ in range(n_folds)]
     for label in (-1, 1):

@@ -2309,3 +2309,23 @@ Evidence (same split, F1 selection, same confirmation protocol hash):
   - Per-fold F1 0.4267/0.4280/0.4289 against F3's 0.4221/0.4220/0.4222, a gain of +0.0046/+0.0060/+0.0067 on every fold.
 - All-row refit: 7 Newton steps, 619 features, test predicted-positive fraction 0.144.
 - The previous F3 submission is superseded; a copy of its outputs was kept outside the repository.
+
+## 2026-10-28 - Final model, leaderboard result and submission packaging
+
+Decision: Attempt 5 F4 (2026-10-27 stroke entry) is the final model. Feature processing is frozen.
+
+Evidence:
+- The F4 `submission.csv` scored **F1 0.442** on the AIcrowd leaderboard, our best upload. The 3-fold estimate was 0.428, so the public score sits slightly above local CV, within the expected spread.
+- A residual probe on the F4 validation predictions (65,627 rows) grouped rows by each raw field's values (quantile bins for wide fields) and computed z = sum(y - p) / sqrt(sum p(1 - p)) per cell.
+  - Fields: no field, dropped or kept, had a cell beyond |z| = 3.2, which matches what chance gives over about 1,000 cells. Per-field sums of z^2 were 10-29 against about 10-15 expected from noise.
+  - Pairs of 18 key risk factors: the worst crossed cells reached about |z| = 4, again near chance. The largest real misfit (respondents without high cholesterol, predicted 4.3% vs observed 3.9%) is too small to move F1.
+  - Conclusion: the linear model has used the available information; further gains would need a nonlinear model or the excluded post-event fields, which stay excluded.
+
+Packaging (spec, Step 4), no change to model behaviour:
+- `implementations.py` moved to the repository root, content unchanged, where the autograder imports it. The path references in `baseline_diagnostics.py`, `io_utils.py` and the two `Mandatory Functions/` test files were updated.
+- New top-level `run.py`: loads the frozen choices from `final_model/frozen_configuration.json` (a copy of `05_feature_recovery/outputs/frozen_final_configuration.json`), refits preprocessing and the Newton model on all 328,135 rows, and writes `submission.csv`.
+  - It is byte-identical to the 0.442 upload and takes about 65 s.
+  - It retrains rather than loading weights, so no binary artifacts are committed.
+  - The 15-minute search and 3-fold confirmation remain in `ml_attempts/05_feature_recovery/run.py`.
+- New root `README.md` covering setup, data preparation, feature generation, the validation protocol and results.
+- Every module, class and function, tests included, now has a short docstring. An AST comparison against the previous commit, ignoring docstrings, confirms no other code changed. All 94 tests pass.

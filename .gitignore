@@ -39,3 +39,6 @@ env/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Output of the top-level run.py
+/submission.csv

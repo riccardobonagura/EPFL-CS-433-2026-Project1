@@ -14,6 +14,7 @@ from baseline_diagnostics import load_targets, load_sampled_predictors, stratifi
 
 
 def file_sha256(path):
+    """Return the SHA-256 hex digest of a file, read in 1 MB blocks."""
     digest = hashlib.sha256()
     with open(path, 'rb') as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b''):
@@ -22,6 +23,7 @@ def file_sha256(path):
 
 
 def load_training_partitions(data_dir, max_rows=0):
+    """Load (optionally subsampled) training rows and split them 80/20 with fixed seeds."""
     ids, full_y = load_targets(Path(data_dir) / 'y_train.csv')
     if max_rows < 0:
         raise ValueError('max_rows must be >=0 (0 means all rows)')
@@ -64,20 +66,23 @@ def load_unlabeled_csv(path):
 
 
 def protect_modules():
+    """Fingerprint the two ML implementation files so later changes can be detected."""
     return {str(path): file_sha256(path) for path in [
-        PROJECT_DIR / 'Mandatory Functions/implementations.py',
+        PROJECT_DIR / 'implementations.py',
         PROJECT_DIR / 'Mandatory Functions/implementations_augmented.py',
     ]}
 
 
 def check_modules(fingerprints):
+    """Raise if any fingerprinted implementation file changed."""
     if any(file_sha256(path) != digest for path, digest in fingerprints.items()):
         raise RuntimeError('An ML implementation changed during execution')
 
 
 def validate_output_directory(output, data_dir):
+    """Create the output folder, refusing data, implementation or earlier analysis folders."""
     output = Path(output).resolve()
-    protected = [Path(data_dir).resolve(), PROJECT_DIR / 'Mandatory Functions',
+    protected = [Path(data_dir).resolve(), PROJECT_DIR / 'implementations.py', PROJECT_DIR / 'Mandatory Functions',
                  PROJECT_DIR / 'Exploratory Analysis/eda_outputs',
                  PROJECT_DIR / 'Exploratory Analysis/baseline_diagnostics']
     for path in protected:

@@ -27,11 +27,13 @@ METRICS = ['accuracy', 'balanced_accuracy', 'precision', 'recall', 'specificity'
 
 
 def write_json(path, values):
+    """Write values as indented JSON, creating parent folders; NaN is rejected."""
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_text(json.dumps(values, indent=2, allow_nan=False) + '\n', encoding='utf-8')
 
 
 def write_csv(path, rows, keys=None):
+    """Write a list of dict rows as CSV (columns default to the union of keys)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     keys = keys or list(dict.fromkeys(key for row in rows for key in row)) or ['status']
@@ -44,6 +46,7 @@ def write_csv(path, rows, keys=None):
 
 
 def metric_values(y_pm1, scores, threshold):
+    """Classification metrics and positive fractions for scores cut at threshold."""
     predicted = np.where(scores >= threshold, 1, -1)
     return {**classification_metrics(y_pm1, predicted),
             'actual_positive_fraction': float(np.mean(y_pm1 == 1)),
@@ -67,6 +70,7 @@ def fit_newton(y_pm1, tx, params, *, tx_val=None, y_val_pm1=None, history=False)
 
 
 def fit_model(bundle, params, *, history=True):
+    """Fit one candidate (Newton, MSE-SGD or GD logistic) on a bundle; return (result, seconds)."""
     if params['model'] == 'newton':
         start = time.perf_counter()
         result = fit_newton(bundle['train_y'], bundle['train'], params, tx_val=bundle['validation'],
@@ -100,6 +104,7 @@ def selection_metric(config):
 
 
 def rank_key(row, metric='balanced_accuracy'):
+    """Sort key for a run: selection metric first, then BA/F1/recall/precision, fewer updates."""
     if row['status'] != 'ok':
         return (-1, -1, -1, -1)
     order = [metric] + [key for key in ['balanced_accuracy', 'f1', 'recall', 'precision'] if key != metric]
@@ -107,6 +112,7 @@ def rank_key(row, metric='balanced_accuracy'):
 
 
 def best(rows, metric='balanced_accuracy'):
+    """Return the best successful run of a search stage under rank_key."""
     good = [row for row in rows if row['status'] == 'ok']
     if not good:
         raise RuntimeError('No finite successful configuration in this search stage')
@@ -114,6 +120,7 @@ def best(rows, metric='balanced_accuracy'):
 
 
 def new_log(context, attempt, config):
+    """Create an attempt's output folder and an empty run log; save the run config."""
     output = context['root'] / 'ml_attempts' / attempt / 'outputs'
     output.mkdir(parents=True, exist_ok=True)
     write_json(output / 'run_config.txt', {'configuration': config, 'split': context['metadata'],
@@ -124,6 +131,7 @@ def new_log(context, attempt, config):
 
 
 def run_candidate(log, bundle, recipe, params, stage):
+    """Fit, threshold, score and save one configuration; append its row to the log."""
     run_id = f'run_{len(log["rows"]) + 1:03d}'
     folder = log['output'] / 'runs' / run_id
     folder.mkdir(parents=True, exist_ok=True)
@@ -184,6 +192,7 @@ def run_candidate(log, bundle, recipe, params, stage):
 
 
 def select(log, row):
+    """Save the chosen run as selection.json, with its threshold curve and figures."""
     payload = {'attempt': log['attempt'], 'best_run': row, 'model_params': log['params'][row['run_id']],
                'recipe': log['recipes'][row['run_id']], 'split': log['context']['metadata'],
                'previous_benchmark': PREVIOUS_BENCHMARK, 'selection_metric': selection_metric(log['config']),
@@ -208,6 +217,7 @@ def select(log, row):
 
 
 def report_header(title, log):
+    """Opening lines of an experiment report: split sizes, seeds and data provenance."""
     meta = log['context']['metadata']
     return [f'# {title}', '',
             f'Shared split: **{meta["training_rows"]:,} training / {meta["validation_rows"]:,} validation rows**;',
@@ -223,12 +233,14 @@ def report_header(title, log):
 
 
 def report_rows(rows):
+    """Markdown table rows (one per successful run) for an experiment report."""
     return [f'| {r["run_id"]} | {r["representation"]} | {r["lambda"]} | {r["gamma"]:.4g} | {r["batch_size"]} | '
             f'{r["actual_updates"]} | {r["default_balanced_accuracy"]:.4f} | {r["balanced_accuracy"]:.4f} | {r["f1"]:.4f} | {r["recall"]:.4f} |'
             for r in rows if r['status'] == 'ok']
 
 
 def report_footer(log):
+    """Closing lines of an experiment report: failures and selection caveats."""
     failed = [r for r in log['rows'] if r['status'] != 'ok']
     return ['', f'Failed/nonfinite runs: {len(failed)}; details remain in all_runs.csv.', '',
             '## Selection limits and completion', '',

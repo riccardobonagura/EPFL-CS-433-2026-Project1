@@ -18,8 +18,8 @@ import numpy as np
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = SCRIPT_DIR.parent
-IMPLEMENTATIONS_DIR = PROJECT_DIR / 'Mandatory Functions'
-sys.path.insert(0, str(IMPLEMENTATIONS_DIR))
+IMPLEMENTATIONS_PATH = PROJECT_DIR / 'implementations.py'
+sys.path.insert(0, str(PROJECT_DIR))
 from implementations import (
     mean_squared_error_gd,
     mean_squared_error_sgd,
@@ -55,6 +55,7 @@ LOGISTIC_METHODS = {'logistic_regression', 'reg_logistic_regression'}
 
 
 def sha256_file(path):
+    """Return the SHA-256 hex digest of a file, read in 1 MB blocks."""
     digest = hashlib.sha256()
     with path.open('rb') as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b''):
@@ -105,6 +106,7 @@ def stratified_subsample(y_pm1, max_rows, seed=RANDOM_SEED):
 
 
 def stratified_split(y_pm1, validation_fraction=VALIDATION_FRACTION, seed=RANDOM_SEED + 1):
+    """Split row indices into class-balanced training/validation parts with a fixed seed."""
     if not 0 < validation_fraction < 1:
         raise ValueError('validation_fraction must be strictly between 0 and 1')
     rng = np.random.default_rng(seed)
@@ -229,6 +231,7 @@ def classification_metrics(y_pm1, predicted_pm1):
 
 
 def data_loss(y, tx, w, logistic):
+    """Unregularized loss: mean logistic NLL if logistic, else half-MSE."""
     scores = tx @ w
     if logistic:
         return float(np.mean(np.logaddexp(0.0, np.where(y == 1, -scores, scores))))
@@ -372,6 +375,7 @@ def run_configuration(config, tx_train, tx_validation, y_train_pm1, y_validation
 
 
 def majority_baseline(y_train_pm1, y_validation_pm1, n_parameters):
+    """Metrics row for the always-negative reference classifier."""
     row = {
         'config_id': 'reference', 'model': 'always_negative', 'lambda': None, 'gamma': None,
         'max_iters': None, 'n_train': len(y_train_pm1), 'n_validation': len(y_validation_pm1),
@@ -416,6 +420,7 @@ def summarize_convergence(rows):
 
 
 def write_csv(path, records, keys=None):
+    """Write a list of dict records as CSV."""
     if keys is None:
         keys = list(dict.fromkeys(key for record in records for key in record))
     with path.open('w', newline='', encoding='utf-8') as stream:
@@ -427,6 +432,7 @@ def write_csv(path, records, keys=None):
 
 
 def format_value(value):
+    """Format a value for a Markdown table cell."""
     if value is None:
         return 'not available'
     if isinstance(value, (float, np.floating)):
@@ -435,6 +441,7 @@ def format_value(value):
 
 
 def table(rows, columns):
+    """Render rows as a Markdown table with the given (key, title) columns."""
     if not rows:
         return 'No successful configurations available.\n'
     lines = ['| ' + ' | '.join(title for _, title in columns) + ' |',
@@ -445,11 +452,13 @@ def table(rows, columns):
 
 
 def best_run(rows, models, metric='balanced_accuracy'):
+    """Best successful run among the given models, ranked by metric then F1 and recall."""
     candidates = [row for row in rows if row['model'] in models and row['status'] == 'ok']
     return max(candidates, key=lambda r: (r[metric], r['f1'], r['recall'], r['config_id'])) if candidates else None
 
 
 def describe_run(row):
+    """One-sentence summary of a run (model, lambda, BA, F1, recall)."""
     if row is None:
         return 'no successful configuration'
     return (f'`{row["model"]}` ({row["config_id"]}, lambda={row["lambda"]}, iterations={row["max_iters"]}): '
@@ -457,6 +466,7 @@ def describe_run(row):
 
 
 def regularization_comparison(rows, ordinary_name, regularized_name):
+    """Sentence comparing the best unregularized and regularized runs."""
     ordinary = best_run(rows, {ordinary_name})
     regularized = best_run(rows, {regularized_name})
     if ordinary is None:
@@ -475,6 +485,7 @@ def regularization_comparison(rows, ordinary_name, regularized_name):
 
 
 def generate_figures(output, rows):
+    """Save matplotlib figures of the baseline diagnostics."""
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -486,6 +497,7 @@ def generate_figures(output, rows):
     plt.rcParams.update({'font.size': 10, 'axes.spines.top': False, 'axes.spines.right': False})
 
     def save(fig, name):
+        """Save one figure as PNG and close it."""
         fig.tight_layout()
         fig.savefig(figures / name, dpi=140, metadata={'Software': 'Mandatory baseline diagnostics'})
         plt.close(fig)
@@ -537,6 +549,7 @@ def generate_figures(output, rows):
 
 
 def write_report(output, rows, metadata, preprocessing_records):
+    """Write the Markdown report of the six baseline methods."""
     setup = metadata['setup']
     conditioning = metadata['conditioning']
     successful = [row for row in rows if row['status'] == 'ok']
@@ -587,7 +600,7 @@ def write_report(output, rows, metadata, preprocessing_records):
         '# Mandatory Model Baseline Diagnostics', '',
         '## 1. Experimental setup', '',
         'This is a separate diagnostic, not a final modeling pipeline. It imports all six functions from',
-        '`../Mandatory Functions/implementations.py`. It does not import/run/edit `eda.py` or read/write',
+        '`../implementations.py`. It does not import/run/edit `eda.py` or read/write',
         '`eda_outputs/`. The mandatory file is fingerprinted before and after execution and remains unchanged.',
         'No class weighting, one-hot encoding, engineered interactions, feature selection, code recoding,',
         'threshold optimization or extensive hyperparameter search is performed.', '',
@@ -731,19 +744,20 @@ def write_report(output, rows, metadata, preprocessing_records):
 
 
 def main(argv=None):
+    """CLI: run the six mandatory methods on a stratified sample and write the report."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-dir', type=Path, default=PROJECT_DIR / 'dataset')
     parser.add_argument('--output-dir', type=Path, default=SCRIPT_DIR / 'baseline_diagnostics')
     parser.add_argument('--max-rows', type=int, default=MAX_DIAGNOSTIC_ROWS)
     args = parser.parse_args(argv)
     output = args.output_dir.resolve()
-    for protected in [args.data_dir.resolve(), SCRIPT_DIR / 'eda_outputs', IMPLEMENTATIONS_DIR]:
+    for protected in [args.data_dir.resolve(), SCRIPT_DIR / 'eda_outputs', IMPLEMENTATIONS_PATH]:
         protected = protected.resolve()
         if output == protected or output in protected.parents or protected in output.parents:
             parser.error('Output directory must be separate from input data, mandatory implementations and EDA outputs')
     if args.max_rows < 4:
         parser.error('--max-rows must be >= 4')
-    implementations_path = IMPLEMENTATIONS_DIR / 'implementations.py'
+    implementations_path = IMPLEMENTATIONS_PATH
     original_implementation_hash = sha256_file(implementations_path)
     start = time.perf_counter()
     print('Reading targets and drawing the stratified diagnostic sample...', flush=True)

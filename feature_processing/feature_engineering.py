@@ -27,6 +27,7 @@ def fit_engineering(values, source_outputs, config):
 
 
 def apply_recipe(matrix, positions, recipe):
+    """Compute one engineered column (product or sum of sources) and standardize it."""
     if recipe['kind'] == 'sum':
         values = sum(matrix[:, positions[source]].astype(float) for source in recipe['sources'])
     else:

@@ -12,12 +12,14 @@ from feature_processing.target_encoding import cross_fit_target_encode, transfor
 
 
 def base_recipes():
+    """The three Attempt 1 representations: R0 minimal, R1 missingness, R2 curated."""
     profiles = ablation_configs(include_target=False)
     return {name: {'name': name, 'kind': 'standard', 'config': profiles[index][1]}
             for name, index in [('R0 minimal', 0), ('R1 missingness', 2), ('R2 curated', 4)]}
 
 
 def _recoverable(raw, names, options):
+    """Pick the dropped medium-cardinality fields eligible for target encoding (TE2)."""
     config = base_recipes()['R2 curated']['config']
     state = fit_preprocessor(raw, names, config=config)
     selected = []
@@ -39,6 +41,7 @@ def _recoverable(raw, names, options):
 
 
 def _append_intercept(base, extra=None):
+    """Stack [1, base, extra] column-wise into one float matrix."""
     extra_width = 0 if extra is None else extra.shape[1]
     result = np.empty((len(base), base.shape[1] + extra_width + 1), dtype=float)
     result[:, 0], result[:, 1:base.shape[1] + 1] = 1.0, base
@@ -72,6 +75,7 @@ def fit_representation(raw, y_pm1, names, recipe):
 
 
 def transform_representation(raw, names, state):
+    """Apply a fitted representation to new raw rows (intercept included)."""
     base = transform(raw, names, state['base'])
     extra = None
     if state['encoder'] is not None:
@@ -81,6 +85,7 @@ def transform_representation(raw, names, state):
 
 
 def prepare(context, recipe, train_indices=None, validation_indices=None):
+    """Fit a recipe on training indices and transform validation; return the matrices and state."""
     train_indices = context['train'] if train_indices is None else train_indices
     validation_indices = context['validation'] if validation_indices is None else validation_indices
     raw = context['x'][train_indices]
@@ -96,6 +101,7 @@ def prepare(context, recipe, train_indices=None, validation_indices=None):
 
 
 def save_representation(state, folder):
+    """Save a fitted representation (state JSON, manifest, metadata) to a folder."""
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     save_state(state['base'], folder / 'preprocessing_state.json')

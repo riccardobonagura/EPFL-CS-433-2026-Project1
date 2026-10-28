@@ -10,6 +10,7 @@ from .representations import base_recipes, prepare, save_representation
 
 
 def logistic_params(config, penalty, gamma):
+    """Parameter dict for one mini-batch GD L2 logistic run with early stopping."""
     return {'model': 'logistic', 'lambda_': float(penalty), 'gamma': float(gamma),
             'batch_size': config['batch_size'], 'max_iters': config['max_updates'],
             'early_stopping': True, 'patience': config['patience'], 'tol': config['tol'],
@@ -18,6 +19,7 @@ def logistic_params(config, penalty, gamma):
 
 
 def attempt_one(context, config):
+    """Attempt 1: compare R0/R1/R2 representations, tuning lambda then gamma for GD logistic."""
     log = new_log(context, config['attempt'], config)
     metric = selection_metric(config)
     winners = []
@@ -87,6 +89,7 @@ def attempt_one(context, config):
 
 
 def attempt_two(context, config, benchmark):
+    """Attempt 2: add out-of-fold target encoding (TE1, TE2) and retune lambda and alpha."""
     log = new_log(context, config['attempt'], config)
     metric = selection_metric(config)
     base_params = benchmark['model_params']
@@ -180,6 +183,7 @@ def attempt_two(context, config, benchmark):
 
 
 def attempt_three(context, config, benchmark):
+    """Attempt 3: least squares by mini-batch SGD on the Attempt 1 features, early stopped."""
     log = new_log(context, config['attempt'], config)
     metric = selection_metric(config)
     recipe = copy.deepcopy(benchmark['recipe'])
@@ -187,6 +191,7 @@ def attempt_three(context, config, benchmark):
     bundle = prepare(context, recipe)
     save_representation(bundle['state'], log['output'] / 'representation_states/S0')
     def parameters(gamma, batch, schedule='constant'):
+        """Parameter dict for one MSE-SGD run."""
         return {'model': 'mse', 'gamma': float(gamma), 'batch_size': batch,
                 'max_iters': config['max_updates'], 'early_stopping': True,
                 'patience': config['patience'], 'tol': config['tol'], 'eval_every': config['eval_every'],
@@ -265,6 +270,7 @@ def attempt_three(context, config, benchmark):
 
 def newton_params(config, penalty):
     # gamma records the nominal full Newton step; backtracking may shorten it.
+    """Parameter dict for one Newton L2 logistic run (to gradient tolerance)."""
     return {'model': 'newton', 'lambda_': float(penalty), 'gamma': 1.0, 'batch_size': None,
             'max_iters': config['max_iters'], 'gradient_tol': config['gradient_tol']}
 

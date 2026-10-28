@@ -12,7 +12,9 @@ import eda
 
 
 class EDATests(unittest.TestCase):
+    """Unit and end-to-end checks of eda.py on small synthetic CSVs."""
     def test_chunk_loader_missing_values_and_reordered_columns(self):
+        """Chunked loading handles missing cells and reordered columns."""
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'x.csv'
             path.write_text('value,Id,other\n1,10,\n2,11,NaN\n3,12,NA\n', encoding='utf-8')
@@ -23,6 +25,7 @@ class EDATests(unittest.TestCase):
             self.assertTrue(data.flags.f_contiguous)
 
     def test_loader_rejects_nonnumeric_and_malformed_records(self):
+        """Loading rejects non-numeric values and rows of the wrong width."""
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'x.csv'
             for content in ['Id,value\n0,oops\n', 'Id,value\n0,1,2\n', 'Id,value\n0,inf\n']:
@@ -31,6 +34,7 @@ class EDATests(unittest.TestCase):
                     eda.load_numeric_csv(path)
 
     def test_id_validation_reordered_columns(self):
+        """ID checks pass when the Id column is not first."""
         x = np.array([[4, 10], [5, 11]], dtype=float)
         target = np.array([[-1, 10], [1, 11]], dtype=float)
         integrity, y = eda.validate_ids_and_shapes(['feature', 'Id'], x, ['_MICHD', 'Id'], target)
@@ -38,6 +42,7 @@ class EDATests(unittest.TestCase):
         np.testing.assert_array_equal(y, [-1, 1])
 
     def test_id_validation_rejects_duplicate_missing_unmatched_or_reordered_ids(self):
+        """ID checks reject duplicate, missing, unmatched or reordered IDs."""
         target = np.array([[10, -1], [11, 1]], dtype=float)
         for ids in [[10, 10], [10, np.nan], [10, 12], [11, 10]]:
             x = np.column_stack([ids, [3, 4]])
@@ -45,12 +50,14 @@ class EDATests(unittest.TestCase):
                 eda.validate_ids_and_shapes(['Id', 'a'], x, ['Id', '_MICHD'], target)
 
     def test_target_validation(self):
+        """Targets must be finite, in {-1, +1}, with both classes present."""
         x = np.array([[0, 4], [1, 5]], dtype=float)
         for labels in [[0, 1], [-1, np.nan], [-1, -1]]:
             with self.subTest(labels=labels), self.assertRaises(ValueError):
                 eda.validate_ids_and_shapes(['Id', 'a'], x, ['Id', '_MICHD'], np.column_stack([[0, 1], labels]))
 
     def test_candidate_type_rules(self):
+        """Fields are classified (binary, categorical, numeric, ...) by the documented rules."""
         examples = [
             ('SEQNO', 300, 1.0, True, 300, 'identifier'),
             ('empty', 0, np.nan, False, 0, 'unknown'),
@@ -68,6 +75,7 @@ class EDATests(unittest.TestCase):
                 self.assertEqual(eda.infer_candidate_type(*arguments)[0], expected)
 
     def test_full_feature_statistics_categories_missingness_and_duplicates(self):
+        """Per-field statistics, categories, missingness and duplicates are correct."""
         n = 300
         labels = np.tile([-1, 1], n // 2)
         binary = np.tile([1.0, 9.0], n // 2)
@@ -103,6 +111,7 @@ class EDATests(unittest.TestCase):
         np.testing.assert_array_equal(data, original)
 
     def test_pairwise_complete_correlations(self):
+        """Correlations use only rows where both fields are present."""
         data = np.random.default_rng(433).normal(size=(40, 4))
         data[::3, 0] = np.nan
         data[::4, 1] = np.nan
@@ -119,10 +128,12 @@ class EDATests(unittest.TestCase):
         self.assertTrue(np.isnan(correlation).all())
 
     def test_missingness_bands_cover_boundaries_once(self):
+        """Every field falls in exactly one missingness band, boundaries included."""
         summaries = [{'missing_fraction': value} for value in [0, 0.01, 0.1, 0.3, 0.5, 0.8, 0.95, 1]]
         self.assertEqual([count for _, count in eda.missingness_bands(summaries)], [1] * 8)
 
     def test_end_to_end_outputs_are_deterministic(self):
+        """Two full EDA runs produce identical outputs."""
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             n = 600

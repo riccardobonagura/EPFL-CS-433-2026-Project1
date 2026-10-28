@@ -1,4 +1,4 @@
-"""Independent entry points and the complete three-attempt workflow."""
+"""Entry points for each attempt and the complete five-attempt workflow."""
 
 import argparse
 import importlib.util
@@ -15,6 +15,7 @@ ATTEMPTS = ['01_logistic_representation', '02_logistic_target_encoded', '03_mse_
 
 
 def load_configs():
+    """Import each attempt's config.py and return {attempt name: CONFIG}."""
     configs = {}
     for name in ATTEMPTS:
         path = Path(__file__).resolve().parent / name / 'config.py'
@@ -26,10 +27,12 @@ def load_configs():
 
 
 def selection_path(context, attempt):
+    """Path of an attempt's saved selection.json."""
     return context['root'] / 'ml_attempts' / attempt / 'outputs/selection.json'
 
 
 def read_selection(context, attempt):
+    """Load an attempt's selection if it exists and belongs to the current split."""
     path = selection_path(context, attempt)
     if not path.exists():
         return None
@@ -40,6 +43,7 @@ def read_selection(context, attempt):
 
 
 def explore(context, configs, names):
+    """Run the hyperparameter searches of the requested attempts (Attempt 1 first if needed)."""
     selections = {}
     benchmark = read_selection(context, ATTEMPTS[0])
     if ATTEMPTS[0] in names or benchmark is None or context.get('force_benchmark', False):
@@ -62,6 +66,7 @@ def explore(context, configs, names):
 
 
 def execute(context, configs, names, phase='all'):
+    """Run the requested phases: search, 3-fold confirmation, then all-row refit and export."""
     selections = explore(context, configs, names) if phase in ('all', 'explore') else {}
     if phase in ('all', 'finish', 'confirm', 'final'):
         from .confirmation import confirm_finalist, final_refit, master_comparison
@@ -93,6 +98,7 @@ def execute(context, configs, names, phase='all'):
 
 
 def cli(name=None, argv=None):
+    """Command-line entry point shared by run_all.py and each attempt's run.py."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--phase', choices=['all', 'explore', 'finish', 'confirm', 'final'], default='all')
     parser.add_argument('--max-rows', type=int, default=0, help='0 uses all rows; sample runs share one deterministic subset')

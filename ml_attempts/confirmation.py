@@ -19,6 +19,7 @@ from .representations import fit_representation, prepare, save_representation, t
 
 
 def _selected_updates(payload):
+    """Updates used by the selected run (its best early-stopping iteration if any)."""
     row = payload['best_run']
     return row['actual_updates'] if row['best_iteration'] is None else row['best_iteration']
 
@@ -119,6 +120,7 @@ def confirm_finalist(context, payload):
 
 
 def _fit_full(training, y_pm1, params):
+    """Fit the frozen model on all given rows with early stopping off; return (result, seconds)."""
     options = {key: value for key, value in params.items() if key not in {'model', 'lambda_'}}
     options.update(initial_w=np.zeros(training.shape[1]), early_stopping=False, return_history=False)
     start = time.perf_counter()
@@ -136,6 +138,7 @@ def _fit_full(training, y_pm1, params):
 
 
 def write_submission(path, ids, labels):
+    """Write an AIcrowd CSV (header Id,Prediction; labels -1/+1) in the given ID order."""
     ids, labels = np.asarray(ids), np.asarray(labels)
     if ids.ndim != 1 or labels.shape != ids.shape or len(set(ids.tolist())) != len(ids):
         raise ValueError('Submission IDs/predictions must be aligned, unique and one-dimensional')
@@ -148,6 +151,7 @@ def write_submission(path, ids, labels):
 
 
 def final_refit(context, payload):
+    """Freeze the confirmed choices, refit on all training rows, then predict x_test.csv."""
     if not payload.get('confirmation_complete'):
         raise ValueError('Confirm a finalist before all-data training or test access')
     output = context['root'] / 'ml_attempts' / payload['attempt'] / 'outputs'
@@ -215,6 +219,7 @@ def final_refit(context, payload):
 
 
 def master_comparison(context):
+    """Collect every attempt's selection into model_comparison.csv and summary.md."""
     rows = []
     for folder in sorted((context['root'] / 'ml_attempts').glob('0*/outputs')):
         path = folder / 'selection.json'

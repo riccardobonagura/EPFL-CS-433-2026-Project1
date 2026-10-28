@@ -1,6 +1,7 @@
 # Mandatory Functions
 
-`implementations.py` contains the six required Project 1 methods. Each returns
+[`implementations.py`](../implementations.py), at the repository root where the
+course autograder imports it, contains the six required Project 1 methods. Each returns
 `(w, loss)`, with one-dimensional weights and the unregularized loss evaluated
 at the final weights. Only NumPy is required.
 
@@ -19,7 +20,7 @@ All iterative methods use exactly `max_iters` updates with the given `gamma`.
 All coefficients, including an intercept if supplied in `tx`, are regularized.
 The direct solvers require nonsingular normal-equation matrices, as in the labs.
 
-From this folder, the required imports work directly:
+From the repository root, the required imports work directly:
 
 ```python
 from implementations import (
@@ -38,10 +39,9 @@ Run the deterministic checks from the repository root:
 python -B -m unittest discover -s "Mandatory Functions" -p "test_*.py" -v
 ```
 
-No Project 1 PDF or official Project 1 grading tests were present when this was
-implemented; the local labs provide the course conventions and reference cases.
-For submission, place this folder's `implementations.py` at the location expected
-by the course grader.
+The local labs provide the course conventions and reference cases. The tests in
+this folder add the repository root to `sys.path` to import the graded module.
+This folder keeps the experimental `implementations_augmented.py` and both test files.
 
 ## Experimental augmented API
 

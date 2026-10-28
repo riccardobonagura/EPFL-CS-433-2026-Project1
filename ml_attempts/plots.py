@@ -28,6 +28,7 @@ _FONT = {
 
 
 def chart(path, title, x, series, xlabel, ylabel, *, unit_interval=False, connect=True):
+    """Draw a line/point chart of one or more series and save it as both PNG and SVG."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     labels = list(x)
@@ -53,6 +54,7 @@ def chart(path, title, x, series, xlabel, ylabel, *, unit_interval=False, connec
            '<rect width="100%" height="100%" fill="white"/>']
 
     def text(px, py, value, color=(25, 25, 25)):
+        """Draw a label with the built-in 5x7 pixel font (PNG) and as SVG text."""
         value = str(value)
         svg.append(f'<text x="{px}" y="{py + 14}" fill="rgb{color}" font-family="Arial,sans-serif" font-size="16">{html.escape(value)}</text>')
         for index, character in enumerate(value.upper()):
@@ -64,6 +66,7 @@ def chart(path, title, x, series, xlabel, ylabel, *, unit_interval=False, connec
                             canvas[yy:yy + 2, xx:xx + 2] = color
 
     def line(x1, y1, x2, y2, color):
+        """Draw a straight line segment on the canvas and in the SVG."""
         count = max(abs(int(x2) - int(x1)), abs(int(y2) - int(y1)), 1) + 1
         xx = np.clip(np.linspace(x1, x2, count).astype(int), 0, width - 1)
         yy = np.clip(np.linspace(y1, y2, count).astype(int), 0, height - 1)
@@ -102,6 +105,7 @@ def chart(path, title, x, series, xlabel, ylabel, *, unit_interval=False, connec
     path.with_suffix('.svg').write_text('\n'.join(svg), encoding='utf-8')
 
     def chunk(kind, data):
+        """Encode one PNG chunk (length, type, data, CRC)."""
         return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data) & 0xffffffff)
     raw = b''.join(b'\x00' + row.tobytes() for row in canvas)
     png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0))

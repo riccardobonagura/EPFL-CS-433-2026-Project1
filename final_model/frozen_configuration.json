@@ -1,0 +1,495 @@
+{
+  "recipe": {
+    "name": "F4 + stroke history",
+    "kind": "standard",
+    "config": {
+      "profile": "curated_v1",
+      "safe_removals": true,
+      "missingness": true,
+      "encode_categorical": true,
+      "canonical": true,
+      "engineer": true,
+      "target_encoding": false,
+      "max_onehot_levels": 5,
+      "onehot_limits": {
+        "DIABETE3": 8,
+        "CHECKUP1": 8,
+        "CHOLCHK": 8,
+        "MARITAL": 8,
+        "EDUCA": 8,
+        "EMPLOY1": 8,
+        "INCOME2": 8
+      },
+      "rare_min_count": 100,
+      "rare_min_fraction": 0.001,
+      "sparse_threshold": 0.95,
+      "missing_indicator_threshold": 0.01,
+      "include_quarantined": false,
+      "quarantine_features": [
+        "HAREHAB1",
+        "STREHAB1",
+        "CVDASPRN",
+        "RDUCHART",
+        "RDUCSTRK",
+        "_MICHD",
+        "CVDINFR4",
+        "CVDCRHD4",
+        "DISPCODE",
+        "FMONTH",
+        "IDATE",
+        "IMONTH",
+        "IDAY",
+        "IYEAR",
+        "FLSHTMY2",
+        "HIVTSTD3",
+        "QSTVER",
+        "QSTLANG",
+        "MSCODE",
+        "_STSTR",
+        "_STRWT",
+        "_RAWRAKE",
+        "_WT2RAKE",
+        "_CLLCPWT",
+        "_DUALCOR",
+        "_LLCPWT"
+      ],
+      "output_dtype": "float32",
+      "memory_warning_gib": 2.0,
+      "preserve_presence": true,
+      "missing_fraction": false,
+      "explicit_missing_indicators": [
+        "BPMEDS"
+      ],
+      "special_code_map": {
+        "GENHLTH": {
+          "7": "missing",
+          "9": "missing"
+        },
+        "BPHIGH4": {
+          "7": "missing",
+          "9": "missing"
+        },
+        "BPMEDS": {
+          "7": "missing",
+          "9": "missing"
+        },
+        "_RFHYPE5": {
+          "9": "missing"
+        },
+        "PHYSHLTH": {
+          "88": 0.0,
+          "77": "missing",
+          "99": "missing"
+        },
+        "MENTHLTH": {
+          "88": 0.0,
+          "77": "missing",
+          "99": "missing"
+        },
+        "POORHLTH": {
+          "88": 0.0,
+          "77": "missing",
+          "99": "missing"
+        },
+        "CHILDREN": {
+          "88": 0.0,
+          "99": "missing"
+        },
+        "ALCDAY5": {
+          "101": 4.285714,
+          "102": 8.571429,
+          "103": 12.857143,
+          "104": 17.142857,
+          "105": 21.428571,
+          "106": 25.714286,
+          "107": 30.0,
+          "201": 1.0,
+          "202": 2.0,
+          "203": 3.0,
+          "204": 4.0,
+          "205": 5.0,
+          "206": 6.0,
+          "207": 7.0,
+          "208": 8.0,
+          "209": 9.0,
+          "210": 10.0,
+          "211": 11.0,
+          "212": 12.0,
+          "213": 13.0,
+          "214": 14.0,
+          "215": 15.0,
+          "216": 16.0,
+          "217": 17.0,
+          "218": 18.0,
+          "219": 19.0,
+          "220": 20.0,
+          "221": 21.0,
+          "222": 22.0,
+          "223": 23.0,
+          "224": 24.0,
+          "225": 25.0,
+          "226": 26.0,
+          "227": 27.0,
+          "228": 28.0,
+          "229": 29.0,
+          "230": 30.0,
+          "888": 0.0,
+          "777": "missing",
+          "999": "missing"
+        },
+        "AVEDRNK2": {
+          "77": "missing",
+          "99": "missing"
+        },
+        "DRNK3GE5": {
+          "88": 0.0,
+          "77": "missing",
+          "99": "missing"
+        },
+        "MAXDRNKS": {
+          "77": "missing",
+          "99": "missing"
+        },
+        "DIABAGE2": {
+          "98": "missing",
+          "99": "missing"
+        },
+        "_DRNKWEK": {
+          "99900": "missing"
+        },
+        "DIABETE3": {
+          "7": "missing",
+          "9": "missing"
+        },
+        "CHECKUP1": {
+          "7": "missing",
+          "9": "missing"
+        },
+        "CHOLCHK": {
+          "7": "missing",
+          "9": "missing"
+        },
+        "MARITAL": {
+          "9": "missing"
+        },
+        "EDUCA": {
+          "9": "missing"
+        },
+        "EMPLOY1": {
+          "9": "missing"
+        },
+        "INCOME2": {
+          "77": "missing",
+          "99": "missing"
+        },
+        "CVDSTRK3": {
+          "7": "missing",
+          "9": "missing"
+        }
+      },
+      "binary_maps": {
+        "BPMEDS": {
+          "1": 1,
+          "2": 0
+        },
+        "_RFHYPE5": {
+          "1": 0,
+          "2": 1
+        },
+        "CVDSTRK3": {
+          "1": 1,
+          "2": 0
+        }
+      },
+      "semantic_types": {
+        "_AGE80": "numeric",
+        "HTM4": "numeric",
+        "HTIN4": "numeric",
+        "WTKG3": "numeric",
+        "_BMI5": "numeric",
+        "PHYSHLTH": "numeric",
+        "MENTHLTH": "numeric",
+        "POORHLTH": "numeric",
+        "CHILDREN": "numeric",
+        "ALCDAY5": "numeric",
+        "AVEDRNK2": "numeric",
+        "DRNK3GE5": "numeric",
+        "MAXDRNKS": "numeric",
+        "DIABAGE2": "numeric",
+        "_DRNKWEK": "numeric",
+        "DIABETE3": "categorical",
+        "CHECKUP1": "categorical",
+        "CHOLCHK": "categorical",
+        "MARITAL": "categorical",
+        "EDUCA": "categorical",
+        "EMPLOY1": "categorical",
+        "INCOME2": "categorical",
+        "CVDSTRK3": "binary"
+      },
+      "type_hints": {},
+      "allow_inferred_numeric": false,
+      "group_choices": {
+        "age": "age80",
+        "height": "meters",
+        "weight_bmi": "weight_bmi",
+        "general_health": "general_health_raw",
+        "blood_pressure": "raw",
+        "physical_activity": "activity_compact",
+        "smoking": "derived",
+        "race": "_RACEG21"
+      },
+      "redundancy_groups": {
+        "age": [
+          "_AGE80",
+          "_AGEG5YR",
+          "_AGE65YR",
+          "_AGE_G"
+        ],
+        "height": [
+          "HEIGHT3",
+          "HTIN4",
+          "HTM4"
+        ],
+        "weight_bmi": [
+          "WEIGHT2",
+          "WTKG3",
+          "_BMI5",
+          "_BMI5CAT",
+          "_RFBMI5"
+        ],
+        "general_health": [
+          "GENHLTH",
+          "_RFHLTH"
+        ],
+        "blood_pressure": [
+          "BPHIGH4",
+          "_RFHYPE5",
+          "BPMEDS"
+        ],
+        "physical_activity": [
+          "EXERANY2",
+          "EXRACT11",
+          "EXEROFT1",
+          "EXERHMM1",
+          "EXRACT21",
+          "EXEROFT2",
+          "EXERHMM2",
+          "STRENGTH",
+          "PADUR1_",
+          "PADUR2_",
+          "PA1MIN_",
+          "PA1VIGM_",
+          "STRFREQ_",
+          "_TOTINDA",
+          "_PAINDX1",
+          "_PASTRNG"
+        ],
+        "smoking": [
+          "SMOKE100",
+          "SMOKDAY2",
+          "STOPSMK2",
+          "LASTSMK2",
+          "_SMOKER3",
+          "_RFSMOK3"
+        ],
+        "race": [
+          "_CRACE1",
+          "_CPRACE",
+          "_PRACE1",
+          "_MRACE1",
+          "_RACE",
+          "_RACEG21",
+          "_RACEGR3",
+          "_RACE_G1"
+        ],
+        "oxygen_capacity": [
+          "MAXVO2_",
+          "FC60_"
+        ],
+        "alcohol_quantity": [
+          "AVEDRNK2",
+          "_DRNKWEK"
+        ]
+      },
+      "group_profiles": {
+        "age": {
+          "age80": [
+            "_AGE80"
+          ],
+          "age_group_onehot": [
+            "_AGEG5YR"
+          ]
+        },
+        "height": {
+          "meters": [
+            "HTM4"
+          ],
+          "inches": [
+            "HTIN4"
+          ]
+        },
+        "weight_bmi": {
+          "weight_bmi": [
+            "WTKG3",
+            "_BMI5"
+          ],
+          "weight_only": [
+            "WTKG3"
+          ],
+          "bmi_only": [
+            "_BMI5"
+          ]
+        },
+        "general_health": {
+          "general_health_raw": [
+            "GENHLTH"
+          ],
+          "general_health_derived": [
+            "_RFHLTH"
+          ],
+          "general_health_both": [
+            "GENHLTH",
+            "_RFHLTH"
+          ]
+        },
+        "blood_pressure": {
+          "raw": [
+            "BPHIGH4",
+            "BPMEDS"
+          ],
+          "derived": [
+            "_RFHYPE5",
+            "BPMEDS"
+          ],
+          "both": [
+            "BPHIGH4",
+            "_RFHYPE5",
+            "BPMEDS"
+          ]
+        },
+        "physical_activity": {
+          "activity_raw": [
+            "EXERANY2",
+            "EXRACT11",
+            "EXEROFT1",
+            "EXERHMM1",
+            "EXRACT21",
+            "EXEROFT2",
+            "EXERHMM2",
+            "STRENGTH"
+          ],
+          "activity_derived": [
+            "_TOTINDA",
+            "PA1MIN_",
+            "PA1VIGM_",
+            "_PAINDX1",
+            "_PASTRNG"
+          ],
+          "activity_compact": [
+            "_TOTINDA",
+            "_PAINDX1",
+            "_PASTRNG"
+          ]
+        },
+        "smoking": {
+          "raw": [
+            "SMOKE100",
+            "SMOKDAY2",
+            "STOPSMK2",
+            "LASTSMK2"
+          ],
+          "derived": [
+            "_SMOKER3"
+          ]
+        },
+        "race": {
+          "_CRACE1": [
+            "_CRACE1"
+          ],
+          "_PRACE1": [
+            "_PRACE1"
+          ],
+          "_MRACE1": [
+            "_MRACE1"
+          ],
+          "_RACE": [
+            "_RACE"
+          ],
+          "_RACEG21": [
+            "_RACEG21"
+          ],
+          "_RACEGR3": [
+            "_RACEGR3"
+          ],
+          "_RACE_G1": [
+            "_RACE_G1"
+          ]
+        }
+      },
+      "exact_duplicates": {
+        "_PSU": "SEQNO",
+        "CELLFON2": "CTELNUM1",
+        "_CPRACE": "_CRACE1"
+      },
+      "log1p_features": [
+        "_DRNKWEK"
+      ],
+      "clip_features": {},
+      "squares": {
+        "age_squared": "_AGE80",
+        "BMI_squared": "_BMI5"
+      },
+      "interactions": {},
+      "dummy_interactions": {
+        "age_x_fair_health": [
+          "_AGE80__scaled",
+          "GENHLTH__4"
+        ],
+        "age_x_poor_health": [
+          "_AGE80__scaled",
+          "GENHLTH__5"
+        ],
+        "age_x_female": [
+          "_AGE80__scaled",
+          "SEX__2"
+        ],
+        "age_x_no_diabetes": [
+          "_AGE80__scaled",
+          "DIABETE3__3"
+        ],
+        "age_x_no_high_bp": [
+          "_AGE80__scaled",
+          "BPHIGH4__3"
+        ],
+        "age_x_never_smoker": [
+          "_AGE80__scaled",
+          "_SMOKER3__4"
+        ],
+        "age_x_high_cholesterol": [
+          "_AGE80__scaled",
+          "_RFCHOL__2"
+        ]
+      },
+      "major_condition_features": [],
+      "target_features": null,
+      "max_target_levels": 50,
+      "target_alpha": 20.0,
+      "target_folds": 5,
+      "target_seed": 42
+    }
+  },
+  "params": {
+    "model": "newton",
+    "lambda_": 0.0001,
+    "gamma": 1.0,
+    "batch_size": null,
+    "max_iters": 50,
+    "gradient_tol": 1e-06,
+    "early_stopping": false
+  },
+  "threshold": 0.19241007926067663,
+  "full_training_rows": 328135,
+  "stopping_source": "median inner-CV selected data passes",
+  "threshold_source": "median inner-CV selected threshold",
+  "test_used_for_selection": false
+}

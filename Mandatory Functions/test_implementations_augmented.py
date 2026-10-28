@@ -1,15 +1,21 @@
 """Course equivalence and deterministic checks of the experimental toolbox."""
 
+import sys
 import unittest
+from pathlib import Path
 
 import numpy as np
 
+# The graded implementations.py lives at the repository root.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import implementations as mandatory
 import implementations_augmented as augmented
 
 
 class AugmentedImplementationsTests(unittest.TestCase):
+    """Checks of the experimental fitters, metrics and threshold helpers."""
     def setUp(self):
+        """Build a small random regression/classification problem."""
         rng = np.random.default_rng(433)
         self.tx = np.column_stack([np.ones(24), rng.normal(size=(24, 3))])
         self.y = rng.normal(size=24)
@@ -17,6 +23,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.w = np.array([0.1, -0.2, 0.3, -0.1])
 
     def assert_result(self, result, expected_w, expected_loss):
+        """Assert a FitResult has the expected weights and loss."""
         self.assertIsInstance(result, augmented.FitResult)
         self.assertEqual(result.w.shape, expected_w.shape)
         self.assertIsInstance(result.loss, float)
@@ -24,6 +31,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.assertAlmostEqual(result.loss, expected_loss, places=13)
 
     def test_mandatory_equivalence_for_full_batch_iterative_methods(self):
+        """Full-batch fitters reproduce the graded GD methods exactly."""
         pairs = [
             (augmented.fit_mse_gd, mandatory.mean_squared_error_gd, self.y, (), {}),
             (augmented.fit_logistic_regression, mandatory.logistic_regression, self.labels, (), {}),
@@ -44,6 +52,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
                     self.assertIsNone(result.best_validation_loss)
 
     def test_mandatory_equivalence_for_closed_form_methods(self):
+        """Closed-form fitters reproduce least squares and ridge."""
         expected_w, expected_loss = mandatory.least_squares(self.y, self.tx)
         result = augmented.fit_least_squares(self.y, self.tx, solver='solve')
         self.assert_result(result, expected_w, expected_loss)
@@ -56,6 +65,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
             self.assert_result(result, expected_w, expected_loss)
 
     def test_newton_reaches_the_long_run_gradient_descent_optimum(self):
+        """Newton logistic converges to the optimum that long GD reaches."""
         for penalize in (False, True):
             with self.subTest(penalize_intercept=penalize):
                 newton = augmented.fit_reg_logistic_newton(self.labels, self.tx, 0.1, np.zeros(4), 50,
@@ -73,6 +83,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.assertAlmostEqual(result.loss, expected_loss, places=10)
 
     def test_newton_budget_chunks_validation_and_history(self):
+        """Newton respects its step budget and records validation history."""
         start = augmented.fit_reg_logistic_newton(self.labels, self.tx, 0.1, self.w, 0)
         np.testing.assert_array_equal(start.w, self.w)
         self.assertEqual((start.n_updates, start.stop_reason, start.converged), (0, 'max_iters', False))
@@ -88,6 +99,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.assertLessEqual(monitored.history['gradient_norm'][-1], 1e-12)
 
     def test_full_batch_sizes_match_full_batch_trainers(self):
+        """A batch size equal to N reproduces full-batch training."""
         for size in (None, len(self.y), len(self.y) + 7):
             with self.subTest(batch_size=size):
                 result = augmented.fit_mse_sgd(self.y, self.tx, self.w, 9, 0.1, batch_size=size)
@@ -95,6 +107,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
                 self.assert_result(result, expected_w, expected_loss)
 
     def test_epoch_traversal_includes_tail_and_counts_updates(self):
+        """Mini-batch epochs include the last partial batch and count updates."""
         tx = np.arange(1, 6, dtype=float).reshape(-1, 1)
         y = np.arange(5, dtype=float)
         expected = np.zeros(1)
@@ -106,6 +119,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.assertEqual(result.n_updates, 4)
 
     def test_mini_batch_rng_is_local_reproducible_and_seed_sensitive(self):
+        """Mini-batch order depends only on the seed, not the global RNG."""
         options = dict(batch_size=4, return_history=True, eval_every=2)
         np.random.seed(12)
         state = np.random.get_state()
@@ -121,6 +135,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
             np.testing.assert_array_equal(first.history[key], second.history[key])
 
     def test_weighted_losses_and_gradients_match_formulas_and_finite_differences(self):
+        """Weighted losses/gradients match formulas and finite differences."""
         weights = np.arange(len(self.y), dtype=float)
         for y, loss_function, gradient_function, logistic in [
             (self.y, augmented._compute_mse, augmented._compute_mse_gradient, False),
@@ -146,6 +161,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
                 np.testing.assert_allclose(expected, numerical, rtol=1e-7, atol=1e-9)
 
     def test_unit_sample_weights_and_rescaling_invariance(self):
+        """Unit weights change nothing; rescaling all weights changes nothing."""
         for fit, y in [(augmented.fit_mse_gd, self.y), (augmented.fit_mse_sgd, self.y),
                        (augmented.fit_logistic_regression, self.labels)]:
             options = {'batch_size': 3} if fit != augmented.fit_mse_gd else {}
@@ -161,6 +177,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
                 self.assertAlmostEqual(weighted.loss, scaled.loss)
 
     def test_weighted_single_row_batches_keep_global_weighting_and_allow_zero_batches(self):
+        """Weighted 1-row SGD keeps global weights; zero-weight rows allowed."""
         y, tx = np.array([1.0, 2.0]), np.ones((2, 1))
         result = augmented.fit_mse_sgd(y, tx, np.zeros(1), 2, 0.1, shuffle=False,
                                         sample_weight=np.array([0.0, 2.0]))
@@ -174,6 +191,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         np.testing.assert_allclose(regularized.w, [0.9])
 
     def test_intercept_masks_control_logistic_penalty(self):
+        """The intercept is excluded from the L2 penalty unless requested."""
         baseline = mandatory._compute_logistic_gradient(self.labels, self.tx, self.w)
         for index in (0, 2):
             mask = np.ones(4)
@@ -185,6 +203,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
             self.assertAlmostEqual(result.loss, mandatory._compute_logistic_loss(self.labels, self.tx, result.w))
 
     def test_ridge_exempts_supplied_intercept_and_reports_unpenalized_loss(self):
+        """Ridge skips the intercept penalty and reports the unpenalized loss."""
         tx, y = np.ones((5, 1)), np.full(5, 6.0)
         exempt = augmented.fit_ridge_regression(y, tx, 1)
         penalized = augmented.fit_ridge_regression(y, tx, 1, penalize_intercept=True)
@@ -193,6 +212,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.assertAlmostEqual(penalized.loss, 8)
 
     def test_early_stopping_restores_best_checkpoint_and_recomputes_training_loss(self):
+        """Early stopping returns the best checkpoint and its training loss."""
         y, tx, initial = np.ones(1), np.ones((1, 1)), np.zeros(1)
         result = augmented.fit_mse_gd(y, tx, initial, 20, 0.5, tx_val=tx, y_val=np.array([0.5]),
                                       early_stopping=True, eval_every=1, patience=2, return_history=True)
@@ -206,6 +226,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.assertNotEqual(result.loss, result.history['train_loss'][-1])
 
     def test_validation_monitoring_without_early_stopping_returns_last_weights(self):
+        """Monitoring without early stopping returns the last weights."""
         result = augmented.fit_mse_gd(np.ones(1), np.ones((1, 1)), np.zeros(1), 3, 0.5,
                                       tx_val=np.ones((1, 1)), y_val=np.array([0.5]), eval_every=1)
         np.testing.assert_array_equal(result.w, [0.875])
@@ -214,6 +235,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.assertFalse(result.converged)
 
     def test_early_stopping_mode_selects_best_even_when_budget_exhausted(self):
+        """The best checkpoint is returned even when the budget runs out."""
         result = augmented.fit_mse_gd(np.ones(1), np.ones((1, 1)), np.zeros(1), 2, 0.5,
                                       tx_val=np.ones((1, 1)), y_val=np.array([0.5]),
                                       early_stopping=True, patience=10, eval_every=1)
@@ -223,6 +245,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.assertEqual(result.stop_reason, 'max_iters')
 
     def test_early_stopping_tolerance_is_strict_and_initial_weights_can_win(self):
+        """Improvements must exceed tol; the initial weights can be best."""
         result = augmented.fit_mse_gd(np.ones(1), np.ones((1, 1)), np.zeros(1), 9, 0.5,
                                       tx_val=np.ones((1, 1)), y_val=np.ones(1),
                                       early_stopping=True, patience=1, tol=0.375, eval_every=1)
@@ -232,6 +255,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         np.testing.assert_array_equal(result.w, [0])
 
     def test_validation_never_affects_gradients_and_remains_unweighted(self):
+        """Validation data never enters the gradient and is scored unweighted."""
         weights = np.arange(1, 25, dtype=float)
         plain = augmented.fit_logistic_regression(self.labels, self.tx, self.w, 11, 0.1, sample_weight=weights)
         monitored = augmented.fit_logistic_regression(self.labels, self.tx, self.w, 11, 0.1,
@@ -242,6 +266,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.assertEqual(monitored.history['validation_loss'][-1], expected_val)
 
     def test_gradient_tolerance_uses_full_objective_gradient(self):
+        """The stopping tolerance uses the gradient of the full penalized objective."""
         result = augmented.fit_mse_gd(np.ones(1), np.ones((1, 1)), np.zeros(1), 9, 1,
                                       gradient_tol=0, eval_every=1)
         self.assertEqual(result.stop_reason, 'tolerance')
@@ -257,6 +282,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.assertEqual(regularized.stop_reason, 'max_iters')
 
     def test_history_checkpoints_are_aligned_and_include_final_budget(self):
+        """History checkpoints are evenly spaced and include the final update."""
         result = augmented.fit_mse_sgd(self.y, self.tx, self.w, 7, 0.1, batch_size=3,
                                        eval_every=3, return_history=True)
         self.assertEqual(result.history['update'], [0, 3, 6, 7])
@@ -266,6 +292,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.assertEqual(result.history['learning_rate'][0], 0)
 
     def test_learning_rate_schedules_use_one_based_update_indices(self):
+        """Step-size schedules count updates from 1."""
         for schedule, decay in [('constant', 0), ('sqrt', 0), ('inverse', 0.5)]:
             with self.subTest(schedule=schedule):
                 result = augmented.fit_mse_gd(np.ones(1), np.ones((1, 1)), np.zeros(1), 3, 0.2,
@@ -280,6 +307,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
                 np.testing.assert_allclose(result.history['learning_rate'][1:], rates)
 
     def test_nonfinite_optimization_is_detected_at_checkpoint(self):
+        """Divergence to non-finite values is detected and reported."""
         result = augmented.fit_mse_gd(np.ones(1), np.array([[2.0]]), np.zeros(1), 9, 1e308,
                                       eval_every=2, return_history=True)
         self.assertEqual(result.stop_reason, 'non_finite')
@@ -288,6 +316,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.assertFalse(np.isfinite(result.loss))
 
     def test_stable_logistic_extreme_scores(self):
+        """Logistic loss stays finite for very large scores."""
         tx, w, y = np.eye(2), np.array([1000.0, -1000]), np.array([1, 0])
         with np.errstate(over='raise', invalid='raise', divide='raise'):
             probabilities = augmented.logistic_predict_proba(tx, w)
@@ -298,6 +327,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.assertEqual(wrong.loss, 1000)
 
     def test_explicit_pseudoinverse_handles_rank_deficiency_without_fallback(self):
+        """The default solver raises on rank deficiency; the opt-in pinv solver handles it."""
         tx, y = np.ones((2, 2)), np.array([1.0, 3])
         with self.assertRaises(np.linalg.LinAlgError):
             augmented.fit_least_squares(y, tx)
@@ -307,6 +337,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         np.testing.assert_allclose(tx.T @ (tx @ result.w - y), 0, atol=1e-12)
 
     def test_class_weight_helper(self):
+        """Each row gets its class's weight; invalid labels or all-zero weights raise."""
         weights = augmented.make_class_weights(np.array([0, 1, 1, 0]), positive_weight=4, negative_weight=0.5)
         np.testing.assert_array_equal(weights, [0.5, 4, 4, 0.5])
         with self.assertRaises(ValueError):
@@ -315,6 +346,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
             augmented.make_class_weights(np.array([0, 1]), positive_weight=0, negative_weight=0)
 
     def test_prediction_helpers_and_threshold_boundaries(self):
+        """Prediction helpers label scores equal to the threshold as positive."""
         tx, w = np.array([[-1.0], [0], [1]]), np.ones(1)
         np.testing.assert_array_equal(augmented.linear_predict_scores(tx, w), [-1, 0, 1])
         np.testing.assert_array_equal(augmented.linear_predict(tx, w), [-1, 1, 1])
@@ -323,6 +355,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         np.testing.assert_array_equal(augmented.logistic_predict(tx, w, threshold=np.inf), [0, 0, 0])
 
     def test_classification_metrics_known_confusion_matrix_and_zero_denominators(self):
+        """Metrics match a known confusion matrix; empty denominators give 0."""
         metrics = augmented.classification_metrics(np.array([1, 1, -1, -1, -1]), np.array([1, -1, 1, -1, -1]))
         for key, expected in {'tp': 1, 'tn': 2, 'fp': 1, 'fn': 1, 'accuracy': 0.6, 'precision': 0.5,
                               'recall': 0.5, 'specificity': 2 / 3, 'f1': 0.5,
@@ -338,6 +371,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.assertEqual(custom['accuracy'], 1)
 
     def test_threshold_selection_known_optimum_and_ties(self):
+        """Threshold search finds a known optimum and breaks ties consistently."""
         scores, y = np.array([0.1, 0.4, 0.6, 0.9]), np.array([0, 0, 1, 1])
         threshold, metrics = augmented.find_best_threshold(y, scores, metric='f1', thresholds=[0.3, 0.5, 0.7])
         self.assertEqual(threshold, 0.5)
@@ -352,6 +386,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.assertEqual(metrics['balanced_accuracy'], 1)
 
     def test_threshold_cumulative_counts_match_direct_predictions_with_ties(self):
+        """Fast cumulative counts equal direct predictions, including ties."""
         scores = np.array([-2.0, -1, -1, 0, 0, 1, 1, 2])
         y = np.array([-1, 1, -1, 1, -1, 1, 1, -1])
         candidates = [-np.inf, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, np.inf]
@@ -367,6 +402,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
         self.assertTrue(np.isfinite(metrics['balanced_accuracy']))
 
     def test_invalid_shapes_and_inputs_raise_value_error(self):
+        """Bad shapes or values raise ValueError."""
         for y, tx, w in [(self.y[:, None], self.tx, self.w), (self.y, self.tx.ravel(), self.w),
                          (self.y[:-1], self.tx, self.w), (self.y, self.tx, self.w[:, None]),
                          (self.y, self.tx, self.w[:-1]), (np.array([]), np.empty((0, 4)), self.w)]:
@@ -402,6 +438,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
             augmented.fit_least_squares(self.y, self.tx, solver='auto')
 
     def test_invalid_predictions_metrics_and_threshold_inputs(self):
+        """Bad prediction, metric or threshold inputs raise ValueError."""
         for action in [
             lambda: augmented.linear_predict_scores(self.tx, self.w[:, None]),
             lambda: augmented.logistic_predict(self.tx, self.w, threshold=np.nan),
@@ -415,6 +452,7 @@ class AugmentedImplementationsTests(unittest.TestCase):
                 action()
 
     def test_inputs_are_not_mutated(self):
+        """No fitter modifies its input arrays."""
         weights = np.arange(1, 25, dtype=float)
         originals = [value.copy() for value in (self.labels, self.tx, self.w, weights)]
         augmented.fit_reg_logistic_regression(self.labels, self.tx, 0.1, self.w, 11, 0.1,

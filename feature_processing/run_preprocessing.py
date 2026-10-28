@@ -19,6 +19,7 @@ from .preprocessing import fit_transform, load_state, save_state, transform, tra
 
 
 def build_config(profile, eda_path=None, review_path=None):
+    """Build a profile config, adding EDA type hints and extra quarantined fields if given."""
     config = get_config(profile)
     if eda_path and Path(eda_path).is_file():
         config['type_hints'] = load_eda_hypotheses(eda_path)
@@ -28,6 +29,7 @@ def build_config(profile, eda_path=None, review_path=None):
 
 
 def write_processing_report(output, state, partitions, training, validation, diagnostics, elapsed):
+    """Write the Markdown report summarizing kept/dropped features and matrix sizes."""
     reasons = Counter(spec.get('drop_reason', '') for spec in state.specs.values() if spec['kind'] == 'dropped')
     count = lambda reason: reasons[reason]
     lines = [
@@ -94,6 +96,7 @@ def write_processing_report(output, state, partitions, training, validation, dia
 
 
 def main(argv=None):
+    """CLI: fit preprocessing on the training split, transform validation/test, save state."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-dir', type=Path, default=PROJECT_DIR / 'dataset')
     parser.add_argument('--output-dir', type=Path, default=Path(__file__).resolve().parent / 'outputs')

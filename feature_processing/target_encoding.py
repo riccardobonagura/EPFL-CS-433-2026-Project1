@@ -8,6 +8,7 @@ OTHER = '__OTHER__'
 
 
 def category_tokens(values):
+    """Map numeric category codes to canonical strings, with NaN as the missing token."""
     values = np.asarray(values, dtype=float)
     if values.ndim != 1 or np.isinf(values).any():
         raise ValueError('Categories must be 1-D numeric values with optional NaN')
@@ -17,6 +18,7 @@ def category_tokens(values):
 
 
 def learn_categories(values, min_count, min_fraction):
+    """Split levels into kept and rare (pooled into "other") by a minimum row count."""
     tokens = category_tokens(values)
     levels, counts = np.unique(tokens, return_counts=True)
     minimum = max(min_count, int(np.ceil(min_fraction * len(tokens))))
@@ -27,6 +29,7 @@ def learn_categories(values, min_count, min_fraction):
 
 
 def _validate(x, y=None, feature_names=None):
+    """Check and coerce target-encoding inputs; return (x, y in {0, 1}, names)."""
     x = np.asarray(x, dtype=float)
     if x.ndim == 1:
         x = x[:, None]
@@ -43,6 +46,7 @@ def _validate(x, y=None, feature_names=None):
 
 
 def fit_target_encoder(x, y, feature_names=None, *, alpha=20.0, rare_min_count=100, rare_min_fraction=0.001):
+    """Learn smoothed per-level positive rates (shrunk to the prior by alpha) per feature."""
     x, y, names = _validate(x, y, feature_names)
     if not np.isfinite(alpha) or alpha < 0 or rare_min_count < 1 or not 0 <= rare_min_fraction <= 1:
         raise ValueError('Invalid target smoothing or category-support settings')
@@ -60,6 +64,7 @@ def fit_target_encoder(x, y, feature_names=None, *, alpha=20.0, rare_min_count=1
 
 
 def transform_target_encoder(x, state, feature_names=None):
+    """Replace each category by its learned smoothed rate; unseen levels get "other"."""
     x, _, names = _validate(x, feature_names=feature_names or state['feature_names'])
     if set(names) != set(state['feature_names']):
         raise ValueError('Target-encoding columns do not match fitted state')
