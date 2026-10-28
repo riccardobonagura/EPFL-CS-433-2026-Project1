@@ -2329,3 +2329,11 @@ Packaging (spec, Step 4), no change to model behaviour:
   - The 15-minute search and 3-fold confirmation remain in `ml_attempts/05_feature_recovery/run.py`.
 - New root `README.md` covering setup, data preparation, feature generation, the validation protocol and results.
 - Every module, class and function, tests included, now has a short docstring. An AST comparison against the previous commit, ignoring docstrings, confirms no other code changed. All 94 tests pass.
+
+## 2026-10-28 - Rename folders and merge per-folder READMEs
+
+Decision: rename `Mandatory Functions/` to `implementations_improved/` (it no longer holds the graded functions, which moved to the root) and `Exploratory Analysis/` to `exploratory_analysis/` (no spaces, consistent with the other folders). Earlier entries keep the old names.
+
+- `implementations_improved/README_augmented.md` was merged into that folder's `README.md`; `exploratory_analysis/baseline_diagnostics_README.md` was merged into that folder's `README.md`. Content was kept; only duplicated intros and test commands were removed.
+- Path references in `common.py`, `io_utils.py`, `evaluate_processing.py`, `run_preprocessing.py`, `eda.py`, `.gitignore` and the READMEs were updated.
+- Verification: all 94 tests pass, black reports no changes, and `run.py` still reproduces the 0.442 submission byte for byte, including from a clean copy.

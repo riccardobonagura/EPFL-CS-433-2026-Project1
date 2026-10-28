@@ -163,7 +163,7 @@ def main(argv=None):
     parser.add_argument(
         "--eda-summary",
         type=Path,
-        default=PROJECT_DIR / "Exploratory Analysis/eda_outputs/feature_summary.csv",
+        default=PROJECT_DIR / "exploratory_analysis/eda_outputs/feature_summary.csv",
     )
     parser.add_argument("--semantic-review", type=Path)
     args = parser.parse_args(argv)

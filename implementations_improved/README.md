@@ -1,15 +1,52 @@
-# Experimental ML implementations
+# implementations_improved
 
-`implementations.py` remains the exact course/autograder API: six functions that
-return `(w, loss)`. Its explanation remains in [README.md](README.md).
+This folder holds our improved fitting toolbox, `implementations_augmented.py`,
+and the unit tests for it and for the graded module. The six required methods
+themselves live in [`implementations.py`](../implementations.py) at the repository
+root, where the course autograder imports them. Only NumPy and the standard
+library are used.
 
-`implementations_augmented.py` is an independent experimental NumPy toolbox.
-Its six `fit_*` functions return `FitResult` and add weighting, mini-batches,
-validation monitoring, stopping rules and compact history. This module is not a
-replacement for the mandatory submission file. It uses only NumPy and Python's
-standard library and performs no training or file access at import time.
+## The six required methods (`implementations.py`)
 
-## Inputs and intercepts
+Each method returns `(w, loss)`, with one-dimensional weights and the unregularized
+loss evaluated at the final weights. The implementation adapts these local course
+solutions:
+
+- `labs/ex02/solution/`: half-MSE, its gradient, GD, and SGD. With batch size one,
+  `helpers.batch_iter` draws a uniform index independently for each update using
+  `np.random.randint`. Call `np.random.seed(...)` before SGD for reproducibility.
+- `labs/ex04/solution/least_squares.py` and `ridge_regression.py`: normal equations
+  solved with `np.linalg.solve`; ridge adds `2 * N * lambda_ * I`.
+- `labs/ex05/solution/ex05.ipynb`: mean binary negative log likelihood, its mean
+  gradient, and the L2 gradient `2 * lambda_ * w`. Logistic calculations use
+  equivalent stable expressions, adapted to one-dimensional vectors.
+
+All iterative methods use exactly `max_iters` updates with the given `gamma`.
+All coefficients, including an intercept if supplied in `tx`, are regularized.
+The direct solvers require nonsingular normal-equation matrices, as in the labs.
+
+From the repository root, the required imports work directly:
+
+```python
+from implementations import (
+    mean_squared_error_gd,
+    mean_squared_error_sgd,
+    least_squares,
+    ridge_regression,
+    logistic_regression,
+    reg_logistic_regression,
+)
+```
+
+## Improved toolbox (`implementations_augmented.py`)
+
+An independent NumPy toolbox used by every experiment. Its `fit_*` functions
+return `FitResult` and add weighting, mini-batches, validation monitoring,
+stopping rules, compact history and a Newton solver. It does not change or
+replace `implementations.py`, and it performs no training or file access at
+import time.
+
+### Inputs and intercepts
 
 Supply already prepared, finite arrays: `tx.shape == (N, D)`, `y.shape == (N,)`,
 and `initial_w.shape == (D,)`. Column vectors are rejected. Inputs are not mutated.
@@ -22,7 +59,7 @@ default to `penalize_intercept=False`. If there is no intercept, use
 `penalize_intercept=True` to penalize every coefficient. Feature values are never
 inspected to guess an intercept. The index must be in `[0, D)`.
 
-## Fitting functions
+### Fitting functions
 
 | Function | Default behavior | Extra capabilities |
 | --- | --- | --- |
@@ -60,7 +97,7 @@ Course-equivalent modes:
 - Augmented SGD intentionally differs from mandatory SGD sampling: it walks
   through shuffled epochs rather than independently drawing random rows.
 
-## Weighting and batches
+### Weighting and batches
 
 Training sample weights must be finite, nonnegative, shape `(N,)`, and have a
 positive sum. Weighted data losses are:
@@ -98,7 +135,7 @@ shuffle once at the beginning of each epoch using `np.random.default_rng(seed)`.
 No global NumPy RNG state is read or modified. `max_iters` always counts gradient
 updates, not epochs. `fit_mse_gd` remains full-batch only.
 
-## Learning rates and stopping
+### Learning rates and stopping
 
 Supported schedules, with the first update at `t=1`:
 
@@ -149,7 +186,7 @@ training objective. The history's last row may differ from the selected best
 weights. Full gradients are calculated at checkpoints only when requested by
 history or gradient-tolerance monitoring. Otherwise `history=None`.
 
-## Validation-based classification example
+### Validation-based classification example
 
 Run from this folder, with prepared arrays supplied by a separate pipeline.
 `y_train` and `y_val` in this example are explicitly {0,1}; column zero is an
@@ -198,6 +235,8 @@ This validation set selects both stopping and threshold. Its metrics are model
 selection diagnostics, not an untouched final evaluation; assess the selected
 model and fixed threshold on a separate holdout.
 
+### Prediction, metrics and thresholds
+
 `linear_predict_scores(tx, w)` returns raw scores. `linear_predict` defaults to
 positive label +1 at score >=0, otherwise -1, with configurable labels/threshold.
 `logistic_predict_proba` uses a stable sigmoid; `logistic_predict` returns integer
@@ -222,12 +261,15 @@ training set or a final test set.
 From the repository root:
 
 ```text
-python -B -m unittest discover -s "Mandatory Functions" -p "test_*.py" -v
+python -B -m unittest discover -s implementations_improved -p "test_*.py" -v
 ```
 
-The augmented suite checks equivalence with the immutable course functions,
-independent weighted loss/gradient formulas, finite differences, weight scaling,
-zero-weight mini-batches, epoch traversal, local-RNG reproducibility, intercept
-exemption, validation isolation, selected weights, schedules, histories,
-nonfinite stopping, threshold ties, confusion metrics, singular solvers and
-input preservation. The original mandatory tests run alongside it.
+`test_implementations.py` checks the six graded methods against the lab
+references (shapes, final losses, exact update counts, zero iterations, stable
+logistic scores). It adds the repository root to `sys.path` to import the graded
+module. `test_implementations_augmented.py` checks equivalence with the course
+functions, independent weighted loss/gradient formulas, finite differences, weight
+scaling, zero-weight mini-batches, epoch traversal, local-RNG reproducibility,
+intercept exemption, validation isolation, selected weights, schedules, histories,
+nonfinite stopping, threshold ties, confusion metrics, singular solvers and input
+preservation.

@@ -6,8 +6,8 @@
 /labs/
 
 # Reproducible analysis outputs (reports, tables, figures, and run metadata)
-/Exploratory Analysis/eda_outputs/
-/Exploratory Analysis/baseline_diagnostics/
+/exploratory_analysis/eda_outputs/
+/exploratory_analysis/baseline_diagnostics/
 /feature_processing/outputs/
 /ml_attempts/*/outputs/
 /ml_attempts/shared_split/

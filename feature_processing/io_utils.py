@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_DIR / "Exploratory Analysis"))
+sys.path.insert(0, str(PROJECT_DIR / "exploratory_analysis"))
 from baseline_diagnostics import (
     load_targets,
     load_sampled_predictors,
@@ -88,7 +88,7 @@ def protect_modules():
         str(path): file_sha256(path)
         for path in [
             PROJECT_DIR / "implementations.py",
-            PROJECT_DIR / "Mandatory Functions/implementations_augmented.py",
+            PROJECT_DIR / "implementations_improved/implementations_augmented.py",
         ]
     }
 
@@ -105,9 +105,9 @@ def validate_output_directory(output, data_dir):
     protected = [
         Path(data_dir).resolve(),
         PROJECT_DIR / "implementations.py",
-        PROJECT_DIR / "Mandatory Functions",
-        PROJECT_DIR / "Exploratory Analysis/eda_outputs",
-        PROJECT_DIR / "Exploratory Analysis/baseline_diagnostics",
+        PROJECT_DIR / "implementations_improved",
+        PROJECT_DIR / "exploratory_analysis/eda_outputs",
+        PROJECT_DIR / "exploratory_analysis/baseline_diagnostics",
     ]
     for path in protected:
         if output == path or output in path.parents or path in output.parents:

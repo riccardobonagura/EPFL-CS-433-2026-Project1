@@ -36,8 +36,8 @@ experiment, which can be rerun with `python -B ml_attempts/05_feature_recovery/r
 | --- | --- |
 | [implementations.py](implementations.py) | The six required methods (GD/SGD least squares, normal equations, ridge, logistic, regularized logistic). |
 | [run.py](run.py) | Reproduces the best submission. |
-| [Exploratory Analysis/](<Exploratory Analysis/README.md>) | EDA of all fields and diagnostics of the six baseline methods. |
-| [Mandatory Functions/](<Mandatory Functions/README.md>) | `implementations_augmented.py`: our reusable fitters (early stopping, Newton logistic), metrics and threshold search; unit tests for both modules. |
+| [exploratory_analysis/](exploratory_analysis/README.md) | EDA of all fields and diagnostics of the six baseline methods. |
+| [implementations_improved/](implementations_improved/README.md) | `implementations_augmented.py`: our improved fitters (early stopping, Newton logistic), metrics and threshold search; unit tests for both modules. |
 | [feature_processing/](feature_processing/README.md) | Training-only preprocessing: cleaning, encoding, scaling, engineered features, target encoding. |
 | [ml_attempts/](ml_attempts/README.md) | The five modelling attempts, shared validation split, 3-fold confirmation and final refits. |
 | `final_model/` | Frozen configuration of the submitted model. |
@@ -99,8 +99,8 @@ search, ablations and per-fold numbers.
 ## Tests
 
 ```text
-python -B "Mandatory Functions/test_implementations.py"
-python -B "Mandatory Functions/test_implementations_augmented.py"
+python -B implementations_improved/test_implementations.py
+python -B implementations_improved/test_implementations_augmented.py
 python -B -m unittest feature_processing.test_preprocessing ml_attempts.test_experiments
-python -B -m unittest discover -s "Exploratory Analysis" -p "test_*.py"
+python -B -m unittest discover -s exploratory_analysis -p "test_*.py"
 ```

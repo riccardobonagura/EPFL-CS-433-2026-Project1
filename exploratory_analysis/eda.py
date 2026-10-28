@@ -1,6 +1,6 @@
 """Reproducible Project 1 EDA using NumPy, the standard library, and plotting.
 
-Run from any working directory: python "Exploratory Analysis/eda.py".
+Run from any working directory: python "exploratory_analysis/eda.py".
 No predictors or labels are recoded, and no models are trained.
 """
 

@@ -81,7 +81,7 @@ administrative/date/weight metadata and the named cardiovascular review fields.
 Thus `minimal` deliberately approximates the previous crude baseline rather than
 reproducing its entire input set. `include_quarantined=True` is an explicit opt-in;
 it is never enabled automatically. The full earlier EDA review list is broader:
-use `--semantic-review "Exploratory Analysis/eda_outputs/semantic_review.csv"` to
+use `--semantic-review "exploratory_analysis/eda_outputs/semantic_review.csv"` to
 add it to quarantine. This can exclude age/BMI and many other derived fields;
 review the manifest rather than assuming those names establish leakage.
 

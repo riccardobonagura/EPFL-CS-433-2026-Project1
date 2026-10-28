@@ -12,7 +12,7 @@ from feature_processing.io_utils import PROJECT_DIR
 from .plots import chart
 from .representations import save_representation
 
-sys.path.insert(0, str(PROJECT_DIR / "Mandatory Functions"))
+sys.path.insert(0, str(PROJECT_DIR / "implementations_improved"))
 from implementations_augmented import (
     classification_metrics,
     find_best_threshold,

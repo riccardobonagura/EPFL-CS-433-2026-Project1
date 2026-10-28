@@ -30,7 +30,7 @@ from .preprocessing import (
 )
 from .run_preprocessing import build_config
 
-sys.path.insert(0, str(PROJECT_DIR / "Mandatory Functions"))
+sys.path.insert(0, str(PROJECT_DIR / "implementations_improved"))
 from implementations_augmented import (
     classification_metrics,
     find_best_threshold,
@@ -202,7 +202,7 @@ def main(argv=None):
     parser.add_argument(
         "--eda-summary",
         type=Path,
-        default=PROJECT_DIR / "Exploratory Analysis/eda_outputs/feature_summary.csv",
+        default=PROJECT_DIR / "exploratory_analysis/eda_outputs/feature_summary.csv",
     )
     parser.add_argument("--semantic-review", type=Path)
     args = parser.parse_args(argv)
