@@ -2286,3 +2286,26 @@ Evidence (`python -B -m ml_attempts.run_all`, same split and confirmation protoc
 - Attempt 5 beats Attempt 4 on all three folds (fold F1 0.4221/0.4220/0.4222 versus 0.4163/0.4187/0.4182).
 - The F1 spread between attempts (0.406-0.422) is much smaller than the gain from the threshold change (about +0.06 F1 per attempt).
 - Fold SD of BA rises at F1 thresholds (about 0.012-0.014 for GD/Newton), because BA is sensitive to where the higher threshold falls; fold SD of F1 stays at or below 0.003 for every attempt.
+
+## 2026-10-27 - Release prior stroke (CVDSTRK3) from quarantine as Attempt 5 block F4
+
+Decision: Attempt 5 gains a fifth cumulative block. F4 = F3 + `CVDSTRK3` ("ever told you had a stroke"), removed from the default quarantine and encoded as a verified binary field (1 = yes -> 1, 2 = no -> 0, 7/9 -> missing, with the pipeline's missing indicator). Every other quarantined field is unchanged. The selected finalist and submission are now F4.
+
+Rationale and leakage review:
+- The default quarantine excluded all cardiovascular review fields (Section on leakage review; `LEAKAGE_REVIEW_FEATURES`) without separating risk factors from consequences.
+- The label `_MICHD` is defined by reported heart attack, angina or coronary heart disease. Those source questions (`CVDINFR4`, `CVDCRHD4`) and `_MICHD` are absent from `x_train.csv`.
+- Prior stroke is a distinct cerebrovascular diagnosis, asked of all respondents, and a recognized comorbidity sharing atherosclerotic risk. It plays the same role as the diabetes and hypertension fields already used.
+- It is therefore a predictor, not a restatement of the label. By contrast:
+  - `HAREHAB1` (cardiac rehabilitation) is asked only after a heart attack and is 100% positive in training.
+  - `CVDASPRN`, `RDUCHART` and `RDUCSTRK` record treatment taken because of heart or stroke risk.
+  - These remain quarantined as post-event or label-proxy fields, as do `STREHAB1` and the survey/administrative metadata.
+- Motivation from the error analysis (2026-10-27 Attempt 5 entry): residual errors were concentrated within age and general-health strata, so information distinguishing risk inside those strata was needed. Stroke history: 37% MICHD rate when yes (13,366 rows) against 8.8% overall.
+
+Evidence (same split, F1 selection, same confirmation protocol hash):
+- Matched-lambda F4-F3 F1 gains: +0.0073, +0.0071, +0.0084, +0.0085, +0.0097, +0.0090. All are positive and the largest of any block (F1-F0 at most 0.0017, F2-F1 at most 0.0030).
+- Best-lambda F4 minus F0: +0.0120 F1. Selected run: F4, lambda 1e-4, exploratory F1 0.43623.
+- 3-fold confirmation:
+  - F1 0.4279 (SD 0.0011), accuracy 0.8674, BA 0.7294, frozen threshold 0.1924.
+  - Per-fold F1 0.4267/0.4280/0.4289 against F3's 0.4221/0.4220/0.4222, a gain of +0.0046/+0.0060/+0.0067 on every fold.
+- All-row refit: 7 Newton steps, 619 features, test predicted-positive fraction 0.144.
+- The previous F3 submission is superseded; a copy of its outputs was kept outside the repository.

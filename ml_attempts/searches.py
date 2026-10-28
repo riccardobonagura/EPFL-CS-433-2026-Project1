@@ -340,7 +340,7 @@ def attempt_four(context, config, benchmark, recovery_config, gd_selections):
 
 
 def recovery_recipes(benchmark, config):
-    """Cumulative F0-F3 blocks on the Attempt 1 base; each adds one codebook-justified change."""
+    """Cumulative F0-F4 blocks on the Attempt 1 base; each adds one codebook-justified change."""
     base = copy.deepcopy(benchmark['recipe'])
     base['name'] = 'F0 ' + base['name']
     decoded = copy.deepcopy(base)
@@ -358,7 +358,14 @@ def recovery_recipes(benchmark, config):
     interactions = copy.deepcopy(categorical)
     interactions['name'] = 'F3 + age interactions and squares'
     interactions['config'].update(engineer=True, dummy_interactions=copy.deepcopy(config['interactions']))
-    return [base, decoded, categorical, interactions]
+    comorbidity = copy.deepcopy(interactions)
+    comorbidity['name'] = 'F4 + stroke history'
+    settings = comorbidity['config']
+    settings['quarantine_features'] = [name for name in settings['quarantine_features'] if name not in config['comorbidity_fields']]
+    settings['special_code_map'] = dict(settings['special_code_map'], **config['comorbidity_codes'])
+    settings['binary_maps'] = dict(settings['binary_maps'], **config['comorbidity_binary_maps'])
+    settings['semantic_types'] = dict(settings['semantic_types'], **{name: 'binary' for name in config['comorbidity_fields']})
+    return [base, decoded, categorical, interactions, comorbidity]
 
 
 def attempt_five(context, config, benchmark, newton_selection):
@@ -412,7 +419,8 @@ def attempt_five(context, config, benchmark, newton_selection):
         '  codes (88 = none, 77/99 = missing) and treats them as numeric. F2 adds one-hot categorical fields that the',
         '  curated profile dropped for cardinality (diabetes, checkup, cholesterol check, marital, education,',
         "  employment, income) after decoding don't-know/refused codes. F3 adds age x condition dummy interactions",
-        '  and the age/BMI squares. Feature counts: ' + ', '.join(f'{r["representation"][:2]}={r["feature_count"]}' for r in block_rows) + '.',
+        '  and the age/BMI squares. F4 releases prior stroke (CVDSTRK3) from quarantine as a verified binary field;',
+        '  post-event cardiac fields stay quarantined. Feature counts: ' + ', '.join(f'{r["representation"][:2]}={r["feature_count"]}' for r in block_rows) + '.',
         f'- **Matched-lambda block gains ({label}):**']
     for row in matched:
         gains = []
@@ -421,7 +429,7 @@ def attempt_five(context, config, benchmark, newton_selection):
             gains.append(f'{current[:2]}-{previous[:2]} ' + ('n/a' if value is None else f'{value:+.5f}'))
         lines.append(f'  lambda={row["lambda"]:g}: ' + ', '.join(gains))
     total = block_rows[-1][metric] - block_rows[0][metric]
-    lines += [f'- **Best-lambda F3 minus F0:** {total:+.5f} {label}; predeclared material gain {config["meaningful_gain"]:.3f}: '
+    lines += [f'- **Best-lambda {names[-1][:2]} minus F0:** {total:+.5f} {label}; predeclared material gain {config["meaningful_gain"]:.3f}: '
               f'{total >= config["meaningful_gain"]}.',
               f'- **Selected finalist:** {winner["representation"]}, lambda={winner["lambda"]}, F1={winner["f1"]:.5f}, '
               f'accuracy={winner["accuracy"]:.5f}, BA={winner["balanced_accuracy"]:.5f}, {winner["actual_updates"]} Newton steps.']

@@ -28,6 +28,12 @@ CONFIG = {
         'EMPLOY1': {9: 'missing'}, 'INCOME2': {77: 'missing', 99: 'missing'},
     },
     'onehot_limit': 8,
+    # F4: prior stroke is a comorbidity asked of every respondent, not part of the MICHD label
+    # (heart attack / angina / coronary disease), so it leaves quarantine. Post-event fields
+    # (cardiac rehab, aspirin for the heart) stay quarantined. 1 = yes, 2 = no, 7/9 = missing.
+    'comorbidity_fields': ['CVDSTRK3'],
+    'comorbidity_codes': {'CVDSTRK3': {7: 'missing', 9: 'missing'}},
+    'comorbidity_binary_maps': {'CVDSTRK3': {1: 1, 2: 0}},
     # Reference levels are the lowest code, so e.g. DIABETE3__3 is "no diabetes".
     'interactions': {
         'age_x_fair_health': ['_AGE80__scaled', 'GENHLTH__4'],

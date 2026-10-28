@@ -1,9 +1,9 @@
-# Three Project 1 experiments
+# Project 1 experiments
 
 These experiments compare tuned logistic representations, selective OOF target
 encoding, early-stopped MSE-SGD, converged Newton L2 logistic with a
 matched-lambda R2/TE2 control (Attempt 4), and codebook-decoded feature recovery
-with targeted interactions (Attempt 5). Every attempt ranks runs and selects thresholds by F1,
+with targeted interactions and prior stroke history (Attempt 5, the current best). Every attempt ranks runs and selects thresholds by F1,
 the leaderboard metric. A0/minimal is the benchmark to beat, not a representation to discard
 because more elaborate processing exists.
 
@@ -120,15 +120,18 @@ as equivalent optimization objectives.
    comparison. Confirmation and the all-row refit run Newton to the same tolerance
    instead of rescaling a selected update budget. See
    [04_logistic_newton/README.md](04_logistic_newton/README.md).
-5. **Feature recovery:** three cumulative blocks on the Attempt 1 base:
+5. **Feature recovery:** four cumulative blocks on the Attempt 1 base:
    codebook-decoded numeric day/count/drinking fields, one-hot recovery of
-   dropped medium-cardinality fields (diabetes, checkups, socioeconomic), and
-   seven age x condition interactions. All four representations are fitted
+   dropped medium-cardinality fields (diabetes, checkups, socioeconomic),
+   seven age x condition interactions, and prior stroke (`CVDSTRK3`) released
+   from quarantine as a comorbidity. All five representations are fitted
    with Newton on one shared lambda grid. See
    [05_feature_recovery/README.md](05_feature_recovery/README.md).
 
-No class weighting, quarantine reintroduction, exhaustive alpha search, blind
+No class weighting, exhaustive alpha search, blind
 engineering block, final-model hyperparameter sweep or leaderboard tuning occurs.
+The only quarantine change is Attempt 5's reviewed release of prior stroke; post-event
+cardiac fields (cardiac rehabilitation, aspirin) and survey metadata stay quarantined.
 The profiles remain conservative hypotheses: success is not assumed, and tiny
 0.0001-scale validation differences are not described as decisive improvements.
 
