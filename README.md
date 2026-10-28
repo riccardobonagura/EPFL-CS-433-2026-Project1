@@ -10,7 +10,7 @@ engineered features (Attempt 5, block F4), with an F1-maximizing decision thresh
 | Estimate | F1 | Accuracy |
 | --- | --- | --- |
 | 3-fold cross-validation (mean of outer folds) | 0.428 | 0.867 |
-| AIcrowd leaderboard (public test set) | 0.442 | |
+| AIcrowd leaderboard (public test set) | 0.442 | 0.872 |
 
 ## Quick start
 
