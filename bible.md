@@ -2337,3 +2337,7 @@ Decision: rename `Mandatory Functions/` to `implementations_improved/` (it no lo
 - `implementations_improved/README_augmented.md` was merged into that folder's `README.md`; `exploratory_analysis/baseline_diagnostics_README.md` was merged into that folder's `README.md`. Content was kept; only duplicated intros and test commands were removed.
 - Path references in `common.py`, `io_utils.py`, `evaluate_processing.py`, `run_preprocessing.py`, `eda.py`, `.gitignore` and the READMEs were updated.
 - Verification: all 94 tests pass, black reports no changes, and `run.py` still reproduces the 0.442 submission byte for byte, including from a clean copy.
+
+## 2026-10-28 - Leaderboard accuracy of the final submission
+
+Addendum to the 2026-10-28 final-model entry: the Attempt 5 F4 upload scored **F1 0.442 and accuracy 0.872** on the AIcrowd leaderboard. Both are slightly above the 3-fold estimates (F1 0.428, accuracy 0.867). The root README and `agentic_readme.md` record both numbers.
