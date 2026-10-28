@@ -13,6 +13,7 @@ import implementations as impl
 
 class MandatoryFunctionsTests(unittest.TestCase):
     """Checks of the six graded methods against the lab references."""
+
     def setUp(self):
         """Build a small random regression/classification problem."""
         rng = np.random.default_rng(433)
@@ -23,14 +24,21 @@ class MandatoryFunctionsTests(unittest.TestCase):
 
     def test_shapes_final_losses_and_input_preservation(self):
         """Weights are 1-D, losses match the final weights, inputs are not modified."""
-        original_inputs = [a.copy() for a in (self.y, self.labels, self.tx, self.initial_w)]
+        original_inputs = [
+            a.copy() for a in (self.y, self.labels, self.tx, self.initial_w)
+        ]
         calls = [
             (impl.mean_squared_error_gd, self.y, (self.initial_w, 7, 0.1), False),
             (impl.mean_squared_error_sgd, self.y, (self.initial_w, 7, 0.1), False),
             (impl.least_squares, self.y, (), False),
             (impl.ridge_regression, self.y, (0.2,), False),
             (impl.logistic_regression, self.labels, (self.initial_w, 7, 0.1), True),
-            (impl.reg_logistic_regression, self.labels, (0.2, self.initial_w, 7, 0.1), True),
+            (
+                impl.reg_logistic_regression,
+                self.labels,
+                (0.2, self.initial_w, 7, 0.1),
+                True,
+            ),
         ]
         np.random.seed(433)
         for method, y, args, logistic in calls:
@@ -44,7 +52,9 @@ class MandatoryFunctionsTests(unittest.TestCase):
                 self.assertTrue(np.isfinite(loss))
                 if logistic:
                     probability = 1 / (1 + np.exp(-self.tx @ w))
-                    expected = -np.mean(y * np.log(probability) + (1 - y) * np.log1p(-probability))
+                    expected = -np.mean(
+                        y * np.log(probability) + (1 - y) * np.log1p(-probability)
+                    )
                 else:
                     expected = 0.5 * np.mean((y - self.tx @ w) ** 2)
                 self.assertAlmostEqual(loss, expected)
@@ -120,7 +130,11 @@ class MandatoryFunctionsTests(unittest.TestCase):
         initial_w = np.array([0.1, 0.2, 0.3])
         for method, extra, expected in [
             (impl.logistic_regression, (), [0.11037076, 0.17932896, 0.24828716]),
-            (impl.reg_logistic_regression, (0.1,), [0.10837076, 0.17532896, 0.24228716]),
+            (
+                impl.reg_logistic_regression,
+                (0.1,),
+                [0.10837076, 0.17532896, 0.24228716],
+            ),
         ]:
             with self.subTest(method=method.__name__):
                 w, _ = method(y, tx, *extra, initial_w, 1, 0.1)
@@ -128,8 +142,12 @@ class MandatoryFunctionsTests(unittest.TestCase):
 
     def test_logistic_zero_penalty(self):
         """Regularized logistic with lambda 0 equals plain logistic."""
-        ordinary = impl.logistic_regression(self.labels, self.tx, self.initial_w, 9, 0.1)
-        regularized = impl.reg_logistic_regression(self.labels, self.tx, 0, self.initial_w, 9, 0.1)
+        ordinary = impl.logistic_regression(
+            self.labels, self.tx, self.initial_w, 9, 0.1
+        )
+        regularized = impl.reg_logistic_regression(
+            self.labels, self.tx, 0, self.initial_w, 9, 0.1
+        )
         np.testing.assert_allclose(ordinary[0], regularized[0])
         self.assertEqual(ordinary[1], regularized[1])
 
@@ -138,7 +156,9 @@ class MandatoryFunctionsTests(unittest.TestCase):
         expected = self.initial_w.copy()
         for _ in range(9):
             probability = 1 / (1 + np.exp(-self.tx @ expected))
-            expected -= 0.1 * (self.tx.T @ (probability - self.labels) / 10 + 0.4 * expected)
+            expected -= 0.1 * (
+                self.tx.T @ (probability - self.labels) / 10 + 0.4 * expected
+            )
         w, _ = impl.reg_logistic_regression(
             self.labels, self.tx, 0.2, self.initial_w, 9, 0.1
         )
@@ -147,7 +167,7 @@ class MandatoryFunctionsTests(unittest.TestCase):
     def test_logistic_extreme_scores(self):
         """Logistic loss and gradient stay finite for very large scores."""
         scores = np.array([-1000.0, -1.0, 0.0, 1.0, 1000.0])
-        with np.errstate(over='raise', invalid='raise', divide='raise'):
+        with np.errstate(over="raise", invalid="raise", divide="raise"):
             probabilities = impl._sigmoid(scores)
             self.assertTrue(np.all((probabilities >= 0) & (probabilities <= 1)))
             for method, extra in [
@@ -155,11 +175,15 @@ class MandatoryFunctionsTests(unittest.TestCase):
                 (impl.reg_logistic_regression, (0.1,)),
             ]:
                 _, loss = method(
-                    np.array([1.0, 0.0]), np.array([[-1000.0], [1000.0]]),
-                    *extra, np.ones(1), 0, 0.1
+                    np.array([1.0, 0.0]),
+                    np.array([[-1000.0], [1000.0]]),
+                    *extra,
+                    np.ones(1),
+                    0,
+                    0.1
                 )
                 self.assertEqual(loss, 1000.0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
